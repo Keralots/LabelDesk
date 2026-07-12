@@ -3,10 +3,43 @@
   import { CustomCanvas } from "$/fabric-object/custom_canvas";
   import { TextboxExt } from "$/fabric-object/textbox-ext";
   import { DEFAULT_LABEL_PROPS, OBJECT_DEFAULTS_TEXT } from "$/defaults";
+  import {
+    connect,
+    disconnect,
+    printLabel,
+    connectionState,
+    printerName,
+    heartbeat,
+    printState,
+    printProgress,
+    printError,
+  } from "$/printer";
+  import type { FabricJson } from "$/types";
 
   let canvasEl: HTMLCanvasElement;
   let canvas: CustomCanvas | undefined;
   let zoomPercent = $state(100);
+
+  const onConnectClick = async () => {
+    if ($connectionState === "connected") {
+      await disconnect();
+      return;
+    }
+    try {
+      await connect();
+    } catch (e) {
+      console.error("Connect failed:", e);
+    }
+  };
+
+  const onPrintClick = async () => {
+    if (!canvas) return;
+    try {
+      await printLabel(canvas.toJSON() as FabricJson, DEFAULT_LABEL_PROPS, { quantity: 1 });
+    } catch (e) {
+      console.error("Print failed:", e);
+    }
+  };
 
   onMount(() => {
     canvas = new CustomCanvas(canvasEl, {
@@ -42,10 +75,39 @@
 <div class="app">
   <header class="topbar">
     <div class="logo">LabelDesk<i></i></div>
-    <div class="doc-chip">Untitled · 40.0 × 12.0 mm · 203 dpi</div>
-    <span class="chip"><span class="dot"></span>No printer</span>
-    <button class="btn-print" disabled>Print</button>
+    <div class="doc-chip">Untitled · 30.0 × 12.0 mm · 203 dpi</div>
+    <button
+      class="chip"
+      class:connected={$connectionState === "connected"}
+      class:connecting={$connectionState === "connecting"}
+      onclick={onConnectClick}
+    >
+      <span class="dot"></span>
+      {#if $connectionState === "connected"}
+        {$printerName}
+        {#if $heartbeat?.chargeLevel != null}
+          <span class="batt">{$heartbeat.chargeLevel * 25}%</span>
+        {/if}
+      {:else if $connectionState === "connecting"}
+        Connecting…
+      {:else}
+        Connect printer
+      {/if}
+    </button>
+    <button class="btn-print" disabled={$connectionState !== "connected" || $printState !== "idle"} onclick={onPrintClick}>
+      {#if $printState === "sending"}
+        Sending…
+      {:else if $printState === "printing"}
+        Printing {$printProgress}%
+      {:else}
+        Print
+      {/if}
+    </button>
   </header>
+
+  {#if $printError}
+    <div class="print-error">{$printError}</div>
+  {/if}
 
   <main class="canvas-area">
     <div class="canvas-holder">
@@ -121,6 +183,9 @@
     background: var(--raised);
     font-size: 12px;
     font-weight: 600;
+    font-family: var(--font-ui);
+    color: var(--ink);
+    cursor: pointer;
   }
 
   .chip .dot {
@@ -128,6 +193,42 @@
     height: 8px;
     border-radius: 50%;
     background: var(--ink-3);
+  }
+
+  .chip.connecting .dot {
+    background: var(--blue);
+    animation: pulse 1s infinite;
+  }
+
+  .chip.connected {
+    border-color: var(--green);
+  }
+
+  .chip.connected .dot {
+    background: var(--green);
+    box-shadow: 0 0 0 3px rgba(46, 125, 79, 0.18);
+  }
+
+  .chip .batt {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    border-left: 1px solid var(--line);
+    padding-left: 8px;
+  }
+
+  @keyframes pulse {
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  .print-error {
+    padding: 8px 16px;
+    background: var(--red);
+    color: #fff8f0;
+    font-family: var(--font-mono);
+    font-size: 11.5px;
   }
 
   .btn-print {

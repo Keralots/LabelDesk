@@ -146,6 +146,16 @@ export class CustomCanvas extends fabric.Canvas {
     container.addEventListener("touchcancel", stopTouch);
   }
 
+  /**
+   * Scale the backing store together with the CSS zoom so the canvas stays
+   * sharp at any zoom level (fabric multiplies backing size by this factor
+   * and compensates all rendering/pointer math automatically).
+   */
+  override getRetinaScaling(): number {
+    const dpr = this.enableRetinaScaling ? (globalThis.devicePixelRatio ?? 1) : 1;
+    return dpr * this.virtualZoomRatio;
+  }
+
   public virtualZoom(newZoom: number) {
     this.virtualZoomRatio = Math.min(Math.max(0.25, newZoom), 4);
     this.setDimensions(
@@ -155,6 +165,9 @@ export class CustomCanvas extends fabric.Canvas {
       },
       { cssOnly: true },
     );
+    // rebuild the backing store at the new retina scale, then paint synchronously
+    this.setDimensions({ width: this.getWidth(), height: this.getHeight() }, { backstoreOnly: true });
+    this.renderAll();
     if (this.onZoomChange) {
       this.onZoomChange(this.virtualZoomRatio);
     }

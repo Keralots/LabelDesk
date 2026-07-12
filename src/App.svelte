@@ -51,10 +51,11 @@
       zoomPercent = Math.round(zoom * 100);
     };
 
+    // OBJECT_DEFAULTS_TEXT uses center origin - left/top are the CENTER point
     const text = new TextboxExt("LabelDesk", {
       ...OBJECT_DEFAULTS_TEXT,
-      left: 24,
-      top: 28,
+      left: DEFAULT_LABEL_PROPS.size.width / 2,
+      top: DEFAULT_LABEL_PROPS.size.height / 2,
       fontSize: 32,
     });
     canvas.add(text);

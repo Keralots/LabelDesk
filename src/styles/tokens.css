@@ -1,0 +1,57 @@
+/* LabelDesk design tokens - "Print Shop" (see claude.ai/design project LabelDesk) */
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap");
+
+:root {
+  /* surfaces */
+  --paper: #f5f1e8;
+  --paper-2: #ede8db;
+  --raised: #fdfbf4;
+
+  /* ink */
+  --ink: #1a1611;
+  --ink-2: #4a443a;
+  --ink-3: #8a8272;
+  --line: #d9d3c5;
+  --line-2: #c7c0ae;
+
+  /* accent + status */
+  --red: #e8442e;
+  --red-2: #c22f1c;
+  --green: #2e7d4f;
+  --blue: #2456a6;
+  --amber: #c77d0a;
+
+  /* stamped shadows - hard offsets, never blurred */
+  --shadow: 2px 2px 0 rgba(26, 22, 17, 0.16);
+  --shadow-lg: 4px 4px 0 rgba(26, 22, 17, 0.18);
+
+  --r-s: 4px;
+  --r-m: 6px;
+  --r-l: 8px;
+
+  --font-ui: "Archivo", system-ui, sans-serif;
+  --font-display: "Archivo Black", "Archivo", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 13px;
+  overflow: hidden;
+}
+
+#app {
+  height: 100%;
+}

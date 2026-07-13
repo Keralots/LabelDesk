@@ -28,6 +28,7 @@ export class CustomCanvas extends fabric.Canvas {
   private customBackground: boolean = true;
   private highlightMirror: boolean = true;
   private gridEnabled: boolean = false;
+  private gridSnap: boolean = false;
   private virtualZoomRatio: number = 1;
   onZoomChange?: (zoom: number) => void;
 
@@ -38,6 +39,15 @@ export class CustomCanvas extends fabric.Canvas {
     super(el, options);
     this.setupZoomAndPan();
     this.preserveObjectStacking = true;
+
+    // Snap object movement to the grid when enabled.
+    this.on("object:moving", (e) => {
+      if (!this.gridSnap || !e.target) return;
+      e.target.set({
+        left: Math.round((e.target.left ?? 0) / GRID_SIZE) * GRID_SIZE,
+        top: Math.round((e.target.top ?? 0) / GRID_SIZE) * GRID_SIZE,
+      });
+    });
   }
 
   private setupZoomAndPan() {
@@ -215,6 +225,10 @@ export class CustomCanvas extends fabric.Canvas {
   setGridEnabled(value: boolean) {
     this.gridEnabled = value;
     this.requestRenderAll();
+  }
+
+  setGridSnap(value: boolean) {
+    this.gridSnap = value;
   }
 
   /** Get label bounds without tail */

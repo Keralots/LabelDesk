@@ -79,8 +79,20 @@
     commit();
   };
 
-  const undo = () => void undoRedo.undo();
-  const redo = () => void undoRedo.redo();
+  // Remember which object was selected so it can be reselected after a restore.
+  let reselectIndex = -1;
+  const captureSelectionIndex = () => {
+    const active = canvas?.getActiveObject();
+    reselectIndex = active ? canvas!.getObjects().indexOf(active) : -1;
+  };
+  const undo = () => {
+    captureSelectionIndex();
+    void undoRedo.undo();
+  };
+  const redo = () => {
+    captureSelectionIndex();
+    void undoRedo.redo();
+  };
 
   const addObject = async (kind: ToolKind) => {
     if (!canvas) return;
@@ -309,6 +321,15 @@
       }
       await FileUtils.loadCanvasState(canvas, data.canvas);
       canvas.renderAll();
+      // Reselect the object that was active before the restore, if it still exists.
+      if (reselectIndex >= 0) {
+        const objs = canvas.getObjects();
+        if (objs[reselectIndex]) {
+          canvas.setActiveObject(objs[reselectIndex]);
+          selection = objs[reselectIndex];
+        }
+        reselectIndex = -1;
+      }
       rev++;
       undoRedo.paused = false;
     };
@@ -336,6 +357,14 @@
 
   const zoomIn = () => canvas?.virtualZoomIn();
   const zoomOut = () => canvas?.virtualZoomOut();
+
+  let gridSnap = $state(false);
+  const toggleGridSnap = () => {
+    gridSnap = !gridSnap;
+    canvas?.setGridEnabled(gridSnap);
+    canvas?.setGridSnap(gridSnap);
+    refreshCanvas();
+  };
 </script>
 
 <svelte:window onkeydown={onKeydown} onkeyup={onKeyup} />
@@ -412,7 +441,9 @@
   </div>
 
   <footer class="status">
-    <span>GRID 5 PX · SNAP ON</span>
+    <button class="snap-toggle" class:on={gridSnap} onclick={toggleGridSnap}>
+      GRID 5 PX · SNAP {gridSnap ? "ON" : "OFF"}
+    </button>
     <span class="right">NO PRINTER · 203 DPI</span>
   </footer>
 </div>
@@ -663,5 +694,27 @@
 
   .status .right {
     margin-left: auto;
+  }
+
+  .snap-toggle {
+    border: 0;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--ink-3);
+    cursor: pointer;
+    padding: 2px 6px;
+    border-radius: 3px;
+    letter-spacing: 0.3px;
+  }
+
+  .snap-toggle:hover {
+    background: var(--paper-2);
+    color: var(--ink-2);
+  }
+
+  .snap-toggle.on {
+    color: var(--green);
+    font-weight: 600;
   }
 </style>

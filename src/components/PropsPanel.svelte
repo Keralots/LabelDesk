@@ -103,6 +103,43 @@
     selection.setCoords();
     onChanged();
   };
+
+  /** Objects whose scaled size can be typed directly (vector shapes, not text/image/codes). */
+  const sizeEditable = (obj: fabric.FabricObject) =>
+    !(obj instanceof TextboxExt || obj instanceof fabric.FabricImage || obj instanceof Barcode || obj instanceof QRCode);
+
+  /** Set the scaled width/height (mm) of a vector shape via its scale factor.
+   *  getScaledWidth/Height include the stroke, so back that out for an exact round-trip. */
+  const setScaledDim = (dim: "w" | "h", value: string) => {
+    if (!selection) return;
+    const mm = parseFloat(value);
+    if (isNaN(mm) || mm <= 0) return;
+    const target = mm2px(mm);
+    if (dim === "w") {
+      const base = selection.width || 1;
+      const strokePart = selection.getScaledWidth() - base * selection.scaleX;
+      selection.scaleX = Math.max((target - strokePart) / base, 0.001);
+    } else {
+      const base = selection.height || 1;
+      const strokePart = selection.getScaledHeight() - base * selection.scaleY;
+      selection.scaleY = Math.max((target - strokePart) / base, 0.001);
+    }
+    selection.setCoords();
+    onChanged();
+  };
+
+  /** Scale an image to fit inside the label (contain), then center it. */
+  const fitImageToLabel = () => {
+    if (!(selection instanceof fabric.FabricImage)) return;
+    const scale = Math.min(
+      labelProps.size.width / (selection.width || 1),
+      labelProps.size.height / (selection.height || 1),
+    );
+    selection.scale(scale);
+    selection.canvas?.centerObject(selection);
+    selection.setCoords();
+    onChanged();
+  };
 </script>
 
 <div class="props">
@@ -133,7 +170,17 @@
           </div>
           <div class="field">
             <label for="pp-w">W × H · mm</label>
-            <div class="v ro">{px2mm(selection.getScaledWidth())} × {px2mm(selection.getScaledHeight())}</div>
+            {#if sizeEditable(selection)}
+              <div class="wh">
+                <input class="v" type="number" step="0.5" min="0.5" value={px2mm(selection.getScaledWidth())}
+                  onchange={(e) => setScaledDim("w", e.currentTarget.value)} />
+                <span>×</span>
+                <input class="v" type="number" step="0.5" min="0.5" value={px2mm(selection.getScaledHeight())}
+                  onchange={(e) => setScaledDim("h", e.currentTarget.value)} />
+              </div>
+            {:else}
+              <div class="v ro">{px2mm(selection.getScaledWidth())} × {px2mm(selection.getScaledHeight())}</div>
+            {/if}
           </div>
         </div>
       </div>
@@ -229,6 +276,11 @@
             <input id="pp-qt" class="v" type="text" value={selection.text}
               onchange={(e) => setObjProp("text", e.currentTarget.value)} />
           </div>
+        </div>
+      {:else if selection instanceof fabric.FabricImage}
+        <div class="sec">
+          <h3>Image</h3>
+          <button class="fit-btn" onclick={fitImageToLabel}>Fit to label</button>
         </div>
       {/if}
 
@@ -434,6 +486,40 @@
   .seg button.on {
     background: var(--ink);
     color: var(--paper);
+  }
+
+  .wh {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .wh input {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .wh span {
+    color: var(--ink-3);
+    font-size: 11px;
+  }
+
+  .fit-btn {
+    width: 100%;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1.5px solid var(--line-2);
+    background: var(--raised);
+    color: var(--ink-2);
+  }
+
+  .fit-btn:hover {
+    border-color: var(--ink);
+    color: var(--ink);
   }
 
   .arrange {

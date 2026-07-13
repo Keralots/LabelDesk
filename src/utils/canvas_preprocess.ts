@@ -14,7 +14,7 @@ const preprocessDateTime = (format?: string) => {
   return dt.format("YYYY-MM-DD HH:mm:ss");
 };
 
-const preprocessString = (input: string, variables?: { [v: string]: string }): string => {
+export const preprocessString = (input: string, variables?: { [v: string]: string }): string => {
   return input.replace(VARIABLE_TEMPLATE_RX, (src, key, filter) => {
     if (variables !== undefined && key in variables) {
       return variables[key];
@@ -23,6 +23,14 @@ const preprocessString = (input: string, variables?: { [v: string]: string }): s
     }
     return src;
   });
+};
+
+export const extractVariableKeys = (input: string): string[] => {
+  const result = new Set<string>();
+  for (const match of input.matchAll(VARIABLE_TEMPLATE_RX)) {
+    result.add(match[1]);
+  }
+  return [...result];
 };
 
 /** Replace text templates in some canvas objects */

@@ -16,12 +16,15 @@
   } from "$/defaults";
   import PrintDialog from "$/components/PrintDialog.svelte";
   import LibraryDialog from "$/components/LibraryDialog.svelte";
+  import DataDialog from "$/components/DataDialog.svelte";
   import { LocalStoragePersistence } from "$/utils/persistence";
   import { UndoRedo } from "$/utils/undo_redo";
   import { ExportedLabelTemplateSchema } from "$/types";
   import type { ExportedLabelTemplate, LabelProps } from "$/types";
   import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
   import type { FabricJson } from "$/types";
+  import { csvData } from "$/stores";
+  import { parseBatchCsv } from "$/utils/batch_data";
 
   let canvasEl: HTMLCanvasElement;
   let canvas: CustomCanvas | undefined;
@@ -152,6 +155,16 @@
     commit();
   };
 
+  const addPlaceholder = (column: string) => {
+    if (!canvas) return;
+    const obj = new TextboxExt(`{${column}}`, { ...OBJECT_DEFAULTS_TEXT, fontSize: 24 });
+    canvas.add(obj);
+    canvas.centerObject(obj);
+    canvas.setActiveObject(obj);
+    refreshCanvas();
+    commit();
+  };
+
   const deleteSelection = () => {
     if (!canvas) return;
     const active = canvas.getActiveObjects();
@@ -250,12 +263,15 @@
 
   let printDialogOpen = $state(false);
   let libraryOpen = $state(false);
+  let dataDialogOpen = $state(false);
+  let batchEnabled = $state(false);
+  const batchRowCount = $derived(parseBatchCsv($csvData.data).rows.length);
 
   const getCanvasJson = (): FabricJson => canvas!.toJSON() as FabricJson;
 
-  const saveLabelToLibrary = (title: string) => {
+  const saveLabelToLibrary = (title: string, includeCsv: boolean) => {
     if (!canvas) return;
-    const tpl = FileUtils.makeExportedLabel(canvas, labelProps, false);
+    const tpl = FileUtils.makeExportedLabel(canvas, labelProps, includeCsv);
     if (title) tpl.title = title;
     const existing = LocalStoragePersistence.loadLabels();
     LocalStoragePersistence.saveLabels([...existing, tpl]);
@@ -271,6 +287,12 @@
       canvas.setLabelProps(labelProps);
       canvas.setLabelSize(labelProps.size.width, labelProps.size.height);
     }
+    if (tpl.csv) {
+      $csvData = tpl.csv;
+      batchEnabled = true;
+    } else {
+      batchEnabled = false;
+    }
     await FileUtils.loadCanvasState(canvas, tpl.canvas);
     canvas.renderAll();
     rev++;
@@ -278,9 +300,9 @@
     commit();
   };
 
-  const exportLabelJson = () => {
+  const exportLabelJson = (includeCsv: boolean) => {
     if (!canvas) return;
-    FileUtils.saveLabelAsJson(FileUtils.makeExportedLabel(canvas, labelProps, false));
+    FileUtils.saveLabelAsJson(FileUtils.makeExportedLabel(canvas, labelProps, includeCsv));
   };
 
   const importLabelJson = async () => {
@@ -384,6 +406,9 @@
   <header class="topbar">
     <div class="logo">LabelDesk<i></i></div>
     <button class="menu-btn" onclick={() => (libraryOpen = true)}>Library</button>
+    <button class="menu-btn" class:active={batchEnabled} onclick={() => (dataDialogOpen = true)}>
+      Data{batchEnabled ? ` (${batchRowCount})` : ""}
+    </button>
     <div class="undo-cluster">
       <button class="icon-btn" title="Undo (Ctrl+Z)" disabled={undoDisabled} onclick={undo} aria-label="Undo">
         ↺
@@ -416,9 +441,24 @@
     <button class="btn-print" onclick={() => (printDialogOpen = true)}>Print</button>
   </header>
 
-  <PrintDialog bind:open={printDialogOpen} {getCanvasJson} {labelProps} dpmm={DPMM} />
+  <PrintDialog
+    bind:open={printDialogOpen}
+    {getCanvasJson}
+    {labelProps}
+    dpmm={DPMM}
+    {batchEnabled}
+    csvText={$csvData.data}
+  />
+  <DataDialog
+    bind:open={dataDialogOpen}
+    bind:enabled={batchEnabled}
+    revision={rev}
+    {getCanvasJson}
+    onAddPlaceholder={addPlaceholder}
+  />
   <LibraryDialog
     bind:open={libraryOpen}
+    batchAvailable={batchEnabled}
     onSave={saveLabelToLibrary}
     onLoad={loadTemplate}
     onExport={exportLabelJson}
@@ -510,6 +550,12 @@
   .menu-btn:hover {
     background: var(--paper-2);
     color: var(--ink);
+  }
+
+  .menu-btn.active {
+    color: var(--amber);
+    background: rgba(199, 125, 10, 0.09);
+    font-weight: 600;
   }
 
   .undo-cluster {

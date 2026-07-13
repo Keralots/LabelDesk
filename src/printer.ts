@@ -16,7 +16,7 @@ import {
 import { CustomCanvas } from "$/fabric-object/custom_canvas";
 import { canvasPreprocess } from "$/utils/canvas_preprocess";
 import { copyImageData, threshold, atkinson, bayer } from "$/utils/post_process";
-import type { FabricJson, LabelProps, PostProcessType } from "$/types";
+import type { BatchPrintRow, FabricJson, LabelProps, PostProcessType } from "$/types";
 
 export type ConnState = "disconnected" | "connecting" | "connected";
 export type PrintState = "idle" | "sending" | "printing";
@@ -27,6 +27,7 @@ export const printerMeta = writable<PrinterModelMeta | undefined>();
 export const heartbeat = writable<HeartbeatData | undefined>();
 export const printState = writable<PrintState>("idle");
 export const printProgress = writable<number>(0);
+export const printCurrentRow = writable<number>(0);
 export const printError = writable<string>("");
 
 let client: NiimbotBluetoothClient | undefined;
@@ -101,7 +102,39 @@ export interface PrintOptions {
   density?: number;
   postProcess?: PostProcessType;
   threshold?: number;
+  variables?: Record<string, string>;
 }
+
+export interface PrintTaskPort {
+  printInit(): Promise<void>;
+  printPage(image: EncodedImage, quantity?: number): Promise<void>;
+  waitForPageFinished(): Promise<void>;
+  waitForFinished(): Promise<void>;
+  printEnd(): Promise<boolean>;
+}
+
+/** Execute a batch against one initialized task and always end the task. */
+export const executeBatchPrintTask = async (
+  task: PrintTaskPort,
+  rows: BatchPrintRow[],
+  encodeRow: (row: BatchPrintRow) => Promise<EncodedImage>,
+  onRowStarted?: (row: BatchPrintRow) => void,
+  onRowCompleted?: (row: BatchPrintRow) => void,
+): Promise<void> => {
+  try {
+    await task.printInit();
+    for (const row of rows) {
+      onRowStarted?.(row);
+      const image = await encodeRow(row);
+      await task.printPage(image, row.quantity);
+      await task.waitForPageFinished();
+      onRowCompleted?.(row);
+    }
+    await task.waitForFinished();
+  } finally {
+    await task.printEnd();
+  }
+};
 
 /** Render label JSON to a 1-bit canvas (shared by the print dialog preview and the print path). */
 export const renderPrintCanvas = async (
@@ -121,7 +154,7 @@ export const renderPrintCanvas = async (
     fabricTempCanvas.setHighlightMirror(false);
     fabricTempCanvas.setLabelProps(labelProps);
     await fabricTempCanvas.loadFromJSON(canvasJson);
-    canvasPreprocess(fabricTempCanvas, {});
+    canvasPreprocess(fabricTempCanvas, options.variables ?? {});
     await fabricTempCanvas.createMirroredObjects();
     fabricTempCanvas.renderAll();
 
@@ -150,62 +183,95 @@ export const renderPrintCanvas = async (
   }
 };
 
-/** Render label JSON to a 1-bit image and send it to the printer. */
-export const printLabel = async (
+/** Render and print different variable rows as one printer task. */
+export const printBatch = async (
   canvasJson: FabricJson,
   labelProps: LabelProps,
+  rows: BatchPrintRow[],
   options: PrintOptions = {},
 ): Promise<void> => {
   if (client === undefined || get(connectionState) !== "connected") {
     throw new Error("Printer not connected");
   }
 
-  const quantity = options.quantity ?? 1;
+  const totalPages = rows.reduce((total, row) => total + row.quantity, 0);
+  if (rows.length === 0 || totalPages < 1) {
+    throw new Error("Batch has no labels to print");
+  }
+
   const density = options.density ?? get(printerMeta)?.densityDefault ?? 3;
+  const taskName: PrintTaskName = client.getPrintTaskType() ?? "D110";
 
   printError.set("");
   printState.set("sending");
   printProgress.set(0);
+  printCurrentRow.set(0);
 
   try {
-    const printCanvas = await renderPrintCanvas(canvasJson, labelProps, options);
-
-    const taskName: PrintTaskName = client.getPrintTaskType() ?? "D110";
-    console.log(`Print task: ${taskName}, density ${density}, quantity ${quantity}`);
-
-    client.stopHeartbeat();
-
+    console.log(`Print task: ${taskName}, density ${density}, pages ${totalPages}`);
     const task = client.abstraction.newPrintTask(taskName, {
-      totalPages: quantity,
+      totalPages,
       density,
       speed: 1,
       labelType: LabelType.WithGaps,
       statusPollIntervalMs: 100,
       statusTimeoutMs: 8_000,
     });
+    client.stopHeartbeat();
 
-    const listener = (e: PrintProgressEvent) => {
-      printProgress.set(Math.floor((e.page / quantity) * ((e.pagePrintProgress + e.pageFeedProgress) / 2)));
+    let completedPages = 0;
+    const listener = (event: PrintProgressEvent) => {
+      const stageProgress = (event.pagePrintProgress + event.pageFeedProgress) / 200;
+      const overall = ((Math.max(0, event.page - 1) + stageProgress) / totalPages) * 100;
+      printProgress.set(Math.min(99, Math.max(0, Math.floor(overall))));
     };
 
+    client.on("printprogress", listener);
     try {
-      const encoded: EncodedImage = ImageEncoder.encodeCanvas(printCanvas, labelProps.printDirection);
-      await task.printInit();
-      await task.printPage(encoded, quantity);
-
-      printState.set("printing");
-      client.on("printprogress", listener);
-      await task.waitForFinished();
+      await executeBatchPrintTask(
+        task,
+        rows,
+        async (row) => {
+          const canvas = await renderPrintCanvas(canvasJson, labelProps, {
+            ...options,
+            variables: row.values,
+          });
+          return ImageEncoder.encodeCanvas(canvas, labelProps.printDirection);
+        },
+        (row) => {
+          printCurrentRow.set(row.sourceRow);
+          printState.set("printing");
+        },
+        (row) => {
+          completedPages += row.quantity;
+          printProgress.set(Math.floor((completedPages / totalPages) * 100));
+        },
+      );
     } finally {
       client.off("printprogress", listener);
-      await task.printEnd().catch((e) => console.warn("printEnd failed", e));
       client.startHeartbeat();
     }
-  } catch (e) {
-    printError.set(`${e}`);
-    throw e;
+  } catch (error) {
+    printError.set(`${error}`);
+    throw error;
   } finally {
     printState.set("idle");
     printProgress.set(0);
+    printCurrentRow.set(0);
   }
+};
+
+/** Render label JSON to a 1-bit image and send it to the printer. */
+export const printLabel = async (
+  canvasJson: FabricJson,
+  labelProps: LabelProps,
+  options: PrintOptions = {},
+): Promise<void> => {
+  const quantity = options.quantity ?? 1;
+  await printBatch(
+    canvasJson,
+    labelProps,
+    [{ sourceRow: 1, values: options.variables ?? {}, times: 1, quantity }],
+    options,
+  );
 };

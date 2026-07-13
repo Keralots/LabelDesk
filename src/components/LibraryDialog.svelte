@@ -5,20 +5,25 @@
 
   interface Props {
     open: boolean;
-    onSave: (title: string) => void;
+    batchAvailable: boolean;
+    onSave: (title: string, includeCsv: boolean) => void;
     onLoad: (template: ExportedLabelTemplate) => void;
-    onExport: () => void;
+    onExport: (includeCsv: boolean) => void;
     onImport: () => void;
   }
 
-  let { open = $bindable(), onSave, onLoad, onExport, onImport }: Props = $props();
+  let { open = $bindable(), batchAvailable, onSave, onLoad, onExport, onImport }: Props = $props();
 
   let labels = $state<ExportedLabelTemplate[]>([]);
   let title = $state("");
   let error = $state("");
+  let includeCsv = $state(false);
 
   $effect(() => {
-    if (open) refresh();
+    if (open) {
+      includeCsv = false;
+      refresh();
+    }
   });
 
   const refresh = () => {
@@ -33,7 +38,7 @@
 
   const save = () => {
     try {
-      onSave(title.trim());
+      onSave(title.trim(), batchAvailable && includeCsv);
       title = "";
       refresh();
     } catch (e) {
@@ -83,8 +88,13 @@
         <button class="btn save" onclick={save}>Save current</button>
       </div>
 
+      <label class="include" class:disabled={!batchAvailable}>
+        <input type="checkbox" bind:checked={includeCsv} disabled={!batchAvailable} />
+        Include batch data in saved and exported labels
+      </label>
+
       <div class="io-row">
-        <button class="btn io" onclick={onExport}>Export JSON</button>
+        <button class="btn io" onclick={() => onExport(batchAvailable && includeCsv)}>Export JSON</button>
         <button class="btn io" onclick={onImport}>Import JSON</button>
       </div>
 
@@ -106,6 +116,7 @@
               <div class="info">
                 <b>{tpl.title || "Untitled"}</b>
                 <span>{tpl.timestamp ? dayjs.unix(tpl.timestamp).format("YYYY-MM-DD HH:mm") : ""}</span>
+                {#if tpl.csv}<span class="batch">BATCH DATA</span>{/if}
               </div>
               <button class="del" title="Delete" onclick={() => remove(tpl)}>×</button>
             </div>
@@ -219,6 +230,19 @@
     flex: none;
   }
 
+  .include {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 0 18px 12px;
+    color: var(--ink-2);
+    background: var(--raised);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
+  .include.disabled { opacity: 0.45; }
+
   .btn.io {
     flex: 1;
     font-family: var(--font-ui);
@@ -317,6 +341,13 @@
     font-family: var(--font-mono);
     font-size: 9px;
     color: var(--ink-3);
+  }
+
+  .info span.batch {
+    margin-left: 5px;
+    color: var(--amber);
+    font-size: 8px;
+    font-weight: 600;
   }
 
   .del {

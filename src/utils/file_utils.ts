@@ -221,8 +221,8 @@ export class FileUtils {
     const result: string[] = [];
 
     for (const file of fileList) {
-      const ext = file.name.split(".").pop();
-      if (ext === acceptExtension) {
+      const ext = file.name.split(".").pop()?.toLowerCase();
+      if (ext === acceptExtension.toLowerCase()) {
         const data = await file.text();
         result.push(data);
       } else {

@@ -14,6 +14,24 @@ export type LabelSplit = "none" | "vertical" | "horizontal";
 export type TailPosition = "right" | "bottom" | "left" | "top";
 export type MirrorType = "none" | "copy" | "flip";
 
+export interface BatchRow {
+  /** One-based row number in the source CSV, excluding the header. */
+  sourceRow: number;
+  values: Record<string, string>;
+  times: number;
+}
+
+export interface BatchParseResult {
+  columns: string[];
+  rows: BatchRow[];
+  errors: string[];
+  valid: boolean;
+}
+
+export interface BatchPrintRow extends BatchRow {
+  quantity: number;
+}
+
 type _Range<T extends number, R extends unknown[]> = R["length"] extends T ? R[number] : _Range<T, [R["length"], ...R]>;
 
 export type Range<T extends number> = number extends T ? number : _Range<T, []>;

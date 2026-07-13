@@ -41,7 +41,8 @@ export class UndoRedo {
       return;
     }
 
-    if (this.index !== this.buf.length - 1 && this.index > 0 && this.index <= this.buf.length) {
+    // Drop any forward (redo) history when a new edit branches off an undone state.
+    if (this.index < this.buf.length - 1) {
       this.buf = this.buf.slice(0, this.index + 1);
     }
 

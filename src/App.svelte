@@ -17,6 +17,7 @@
   import PrintDialog from "$/components/PrintDialog.svelte";
   import LibraryDialog from "$/components/LibraryDialog.svelte";
   import { LocalStoragePersistence } from "$/utils/persistence";
+  import { UndoRedo } from "$/utils/undo_redo";
   import type { ExportedLabelTemplate } from "$/types";
   import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
   import type { FabricJson } from "$/types";
@@ -26,13 +27,31 @@
   let zoomPercent = $state(100);
   let selection = $state<fabric.FabricObject | null>(null);
   let rev = $state(0);
+  let undoDisabled = $state(true);
+  let redoDisabled = $state(true);
 
   const DPMM = 8; // 203 dpi
+
+  const undoRedo = new UndoRedo();
 
   const refreshCanvas = () => {
     canvas?.renderAll();
     rev++;
   };
+
+  /** Snapshot the current canvas into undo history. No-op while paused (during restore). */
+  const commit = () => {
+    if (canvas) undoRedo.push(canvas, DEFAULT_LABEL_PROPS);
+  };
+
+  /** Prop-panel edits mutate objects programmatically (no fabric event), so commit explicitly. */
+  const onPropChanged = () => {
+    refreshCanvas();
+    commit();
+  };
+
+  const undo = () => void undoRedo.undo();
+  const redo = () => void undoRedo.redo();
 
   const addObject = async (kind: ToolKind) => {
     if (!canvas) return;
@@ -78,6 +97,7 @@
     canvas.centerObject(obj);
     canvas.setActiveObject(obj);
     refreshCanvas();
+    commit();
   };
 
   const deleteSelection = () => {
@@ -86,14 +106,31 @@
     canvas.discardActiveObject();
     active.forEach((o) => canvas?.remove(o));
     refreshCanvas();
+    commit();
   };
 
   const onKeydown = (e: KeyboardEvent) => {
-    if (e.key !== "Delete" && e.key !== "Backspace") return;
     const target = e.target as HTMLElement;
-    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    const inField = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
     const active = canvas?.getActiveObject();
-    if (active instanceof fabric.IText && active.isEditing) return;
+    const editingText = active instanceof fabric.IText && active.isEditing;
+
+    if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
+      if (inField || editingText) return;
+      e.preventDefault();
+      if (e.shiftKey) redo();
+      else undo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) {
+      if (inField || editingText) return;
+      e.preventDefault();
+      redo();
+      return;
+    }
+
+    if (e.key !== "Delete" && e.key !== "Backspace") return;
+    if (inField || editingText) return;
     if (active) {
       e.preventDefault();
       deleteSelection();
@@ -127,11 +164,14 @@
 
   const loadLabelFromLibrary = async (tpl: ExportedLabelTemplate) => {
     if (!canvas) return;
+    undoRedo.paused = true;
     canvas.discardActiveObject();
     selection = null;
     await FileUtils.loadCanvasState(canvas, tpl.canvas);
     canvas.renderAll();
     rev++;
+    undoRedo.paused = false;
+    commit();
   };
 
   onMount(() => {
@@ -147,7 +187,26 @@
     canvas.on("selection:created", (e) => (selection = e.selected?.[0] ?? null));
     canvas.on("selection:updated", (e) => (selection = e.selected?.[0] ?? null));
     canvas.on("selection:cleared", () => (selection = null));
-    canvas.on("object:modified", () => rev++);
+    // Fires for transforms (move/scale/rotate) and inline text edits that changed content.
+    canvas.on("object:modified", () => {
+      rev++;
+      commit();
+    });
+
+    undoRedo.onStateUpdate = (s) => {
+      undoDisabled = s.undoDisabled;
+      redoDisabled = s.redoDisabled;
+    };
+    undoRedo.onLabelUpdate = async (data) => {
+      if (!canvas) return;
+      undoRedo.paused = true;
+      canvas.discardActiveObject();
+      selection = null;
+      await FileUtils.loadCanvasState(canvas, data.canvas);
+      canvas.renderAll();
+      rev++;
+      undoRedo.paused = false;
+    };
 
     // OBJECT_DEFAULTS_TEXT uses center origin - left/top are the CENTER point
     const text = new TextboxExt("LabelDesk", {
@@ -159,6 +218,9 @@
     canvas.add(text);
     canvas.virtualZoom(2);
     canvas.renderAll();
+
+    // Baseline snapshot (index 0) so the first edit is undoable back to the empty label.
+    commit();
 
     if (import.meta.env.DEV) {
       (window as unknown as Record<string, unknown>).__canvas = canvas;
@@ -177,6 +239,14 @@
   <header class="topbar">
     <div class="logo">LabelDesk<i></i></div>
     <button class="menu-btn" onclick={() => (libraryOpen = true)}>Library</button>
+    <div class="undo-cluster">
+      <button class="icon-btn" title="Undo (Ctrl+Z)" disabled={undoDisabled} onclick={undo} aria-label="Undo">
+        ↺
+      </button>
+      <button class="icon-btn" title="Redo (Ctrl+Shift+Z)" disabled={redoDisabled} onclick={redo} aria-label="Redo">
+        ↻
+      </button>
+    </div>
     <div class="doc-chip">Untitled · 30.0 × 12.0 mm · 203 dpi</div>
     <button
       class="chip"
@@ -221,7 +291,7 @@
       {rev}
       labelProps={DEFAULT_LABEL_PROPS}
       dpmm={DPMM}
-      onChanged={refreshCanvas}
+      onChanged={onPropChanged}
       onDelete={deleteSelection}
     />
   </div>
@@ -283,6 +353,36 @@
   .menu-btn:hover {
     background: var(--paper-2);
     color: var(--ink);
+  }
+
+  .undo-cluster {
+    display: flex;
+    gap: 2px;
+  }
+
+  .icon-btn {
+    border: 1px solid var(--line-2);
+    background: var(--raised);
+    color: var(--ink-2);
+    width: 30px;
+    height: 28px;
+    border-radius: var(--r-s);
+    cursor: pointer;
+    font-size: 15px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .icon-btn:hover:not(:disabled) {
+    background: var(--paper-2);
+    color: var(--ink);
+  }
+
+  .icon-btn:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
 
   .doc-chip {

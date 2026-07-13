@@ -72,6 +72,27 @@
     selection.setCoords();
     onChanged();
   };
+
+  const centerH = () => {
+    if (!selection?.canvas) return;
+    selection.canvas.centerObjectH(selection);
+    selection.setCoords();
+    onChanged();
+  };
+
+  const centerV = () => {
+    if (!selection?.canvas) return;
+    selection.canvas.centerObjectV(selection);
+    selection.setCoords();
+    onChanged();
+  };
+
+  const arrange = (to: "front" | "back") => {
+    if (!selection?.canvas) return;
+    if (to === "front") selection.canvas.bringObjectToFront(selection);
+    else selection.canvas.sendObjectToBack(selection);
+    onChanged();
+  };
 </script>
 
 <div class="props">
@@ -104,6 +125,16 @@
             <label for="pp-w">W × H · mm</label>
             <div class="v ro">{px2mm(selection.getScaledWidth())} × {px2mm(selection.getScaledHeight())}</div>
           </div>
+        </div>
+      </div>
+
+      <div class="sec">
+        <h3>Arrange</h3>
+        <div class="arrange">
+          <button onclick={centerH} title="Center horizontally">⭰ Center H</button>
+          <button onclick={centerV} title="Center vertically">⭱ Center V</button>
+          <button onclick={() => arrange("front")} title="Bring to front">⬆ To front</button>
+          <button onclick={() => arrange("back")} title="Send to back">⬇ To back</button>
         </div>
       </div>
 
@@ -380,6 +411,29 @@
   .seg button.on {
     background: var(--ink);
     color: var(--paper);
+  }
+
+  .arrange {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .arrange button {
+    border: 1.5px solid var(--line-2);
+    border-radius: 4px;
+    background: var(--raised);
+    padding: 7px 0;
+    font-family: var(--font-ui);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+
+  .arrange button:hover {
+    border-color: var(--ink);
+    color: var(--ink);
   }
 
   .presets {

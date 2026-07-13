@@ -16,6 +16,13 @@ import { csvData, userFonts } from "$/stores";
 import { get } from "svelte/store";
 import { fontsUsedByCanvas } from "$/utils/font_utils";
 import { base64ToBytes, bufferToBase64, compressBuffer, decompressBuffer } from "$/utils/binary_utils";
+import {
+  MAX_TEMPLATE_COMPRESSED_BYTES,
+  MAX_TEMPLATE_DECOMPRESSED_BYTES,
+  MAX_TEMPLATE_FILE_BYTES,
+  assertFileSize,
+  textFileLimit,
+} from "$/utils/import_safety";
 
 export class FileUtils {
   static timestamp(): number {
@@ -29,7 +36,11 @@ export class FileUtils {
   /** Convert string to base64 string */
   static base64str(str: string): string {
     const bytes = new TextEncoder().encode(str);
-    const binString = String.fromCodePoint(...bytes);
+    const chunkSize = 32_768;
+    let binString = "";
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binString += String.fromCodePoint(...bytes.subarray(offset, offset + chunkSize));
+    }
     return btoa(binString);
   }
 
@@ -44,8 +55,8 @@ export class FileUtils {
     return bufferToBase64(buf);
   }
 
-  static async decompressData(buf: BufferSource): Promise<ArrayBuffer> {
-    return decompressBuffer(buf);
+  static async decompressData(buf: BufferSource, maximumOutputBytes?: number): Promise<ArrayBuffer> {
+    return decompressBuffer(buf, maximumOutputBytes);
   }
 
   static async compressData(buf: BufferSource): Promise<ArrayBuffer> {
@@ -203,7 +214,11 @@ export class FileUtils {
     });
   }
 
-  static async pickAndReadTextFile(acceptExtension: string, multiple: boolean): Promise<string[]> {
+  static async pickAndReadTextFile(
+    acceptExtension: string,
+    multiple: boolean,
+    maximumBytes = textFileLimit(acceptExtension),
+  ): Promise<string[]> {
     const fileList = await FileUtils.pickFileAsync(acceptExtension, multiple);
 
     const result: string[] = [];
@@ -211,6 +226,7 @@ export class FileUtils {
     for (const file of fileList) {
       const ext = file.name.split(".").pop()?.toLowerCase();
       if (ext === acceptExtension.toLowerCase()) {
+        assertFileSize(file, maximumBytes, acceptExtension.toUpperCase());
         const data = await file.text();
         result.push(data);
       } else {
@@ -221,8 +237,8 @@ export class FileUtils {
     return result;
   }
 
-  static async pickAndReadSingleTextFile(acceptExtension: string): Promise<string> {
-    const result = await FileUtils.pickAndReadTextFile(acceptExtension, false);
+  static async pickAndReadSingleTextFile(acceptExtension: string, maximumBytes?: number): Promise<string> {
+    const result = await FileUtils.pickAndReadTextFile(acceptExtension, false, maximumBytes);
     if (result.length === 0) {
       throw new Error("No files processed");
     }
@@ -232,7 +248,10 @@ export class FileUtils {
   /**
    * Open file picker and return file contents
    * */
-  static async pickAndReadBinaryFile(acceptExtension: string): Promise<{ name: string; data: ArrayBuffer }> {
+  static async pickAndReadBinaryFile(
+    acceptExtension: string,
+    maximumBytes = MAX_TEMPLATE_FILE_BYTES,
+  ): Promise<{ name: string; data: ArrayBuffer }> {
     const fileList = await FileUtils.pickFileAsync(acceptExtension, false);
     const file: File = fileList[0];
     const ext = file.name.split(".").pop();
@@ -241,6 +260,7 @@ export class FileUtils {
       throw new Error(`Only ${acceptExtension} allowed`);
     }
 
+    assertFileSize(file, maximumBytes, "File");
     const data: ArrayBuffer = await file.arrayBuffer();
     return { name: file.name, data };
   }
@@ -374,6 +394,9 @@ export class FileUtils {
 
     if ("uload" in params) {
       const b64data: string = params["uload"];
+      if (b64data.length > Math.ceil((MAX_TEMPLATE_FILE_BYTES * 4) / 3) + 4) {
+        throw new Error("Shared label data is too large.");
+      }
       const jsonBytes = FileUtils.base64toBytes(b64data);
       const jsonStr = new TextDecoder().decode(jsonBytes);
       const labelObj = JSON.parse(jsonStr);
@@ -385,8 +408,11 @@ export class FileUtils {
     }
 
     const b64data: string = params["load"];
+    if (b64data.length > Math.ceil((MAX_TEMPLATE_COMPRESSED_BYTES * 4) / 3) + 4) {
+      throw new Error("Compressed shared label data is too large.");
+    }
     const bytes = FileUtils.base64toBytes(b64data);
-    const decompressed = await FileUtils.decompressData(bytes);
+    const decompressed = await FileUtils.decompressData(bytes, MAX_TEMPLATE_DECOMPRESSED_BYTES);
     const decoder = new TextDecoder();
 
     const decoded = decoder.decode(decompressed);

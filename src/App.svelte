@@ -38,6 +38,11 @@
     syncUserFonts,
   } from "$/utils/font_utils";
   import { isObjectLocked, restoreObjectLock, setObjectLocked } from "$/utils/layer_utils";
+  import {
+    MAX_IMAGE_FILE_BYTES,
+    assertFileSize,
+    assertImageDimensions,
+  } from "$/utils/import_safety";
 
   let canvasEl: HTMLCanvasElement;
   let canvasAreaEl: HTMLElement;
@@ -223,12 +228,14 @@
       console.error("Unsupported image type:", file?.type || "(none)");
       return null;
     }
+    assertFileSize(file, MAX_IMAGE_FILE_BYTES, "Image");
     const dataUrl = await FileUtils.blobToDataUrl(file);
     const image = await fabric.FabricImage.fromURL(dataUrl);
     if (!image.width || !image.height) {
       console.error("Image failed to decode:", file.name);
       return null;
     }
+    assertImageDimensions(image.width, image.height);
     return image;
   };
 
@@ -721,14 +728,10 @@
   };
 
   const importLabelJson = async () => {
-    try {
-      const text = await FileUtils.pickAndReadSingleTextFile("json");
-      const tpl = ExportedLabelTemplateSchema.parse(JSON.parse(text));
-      await loadTemplate(tpl);
-      libraryOpen = false;
-    } catch (e) {
-      console.error("Import failed:", e);
-    }
+    const text = await FileUtils.pickAndReadSingleTextFile("json");
+    const tpl = ExportedLabelTemplateSchema.parse(JSON.parse(text));
+    await loadTemplate(tpl);
+    libraryOpen = false;
   };
 
   onMount(() => {

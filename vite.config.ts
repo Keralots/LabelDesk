@@ -3,6 +3,9 @@ import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { resolve } from "node:path";
 
 export default defineConfig({
+  // Relative assets work at a domain root, in GitHub Pages project paths,
+  // and in locally opened distribution folders.
+  base: "./",
   plugins: [svelte()],
   define: {
     __APP_VERSION__: JSON.stringify(process.env.npm_package_version),

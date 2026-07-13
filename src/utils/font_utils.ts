@@ -2,12 +2,16 @@ import { FONT_FAMILIES } from "$/defaults";
 import type { FabricJson, UserFont } from "$/types";
 import { fontLoadErrors, loadedFontFamilies, loadedFonts } from "$/stores";
 import { base64ToBytes, bufferToBase64, compressBuffer, decompressBuffer } from "$/utils/binary_utils";
+import {
+  MAX_COMPRESSED_FONT_BYTES,
+  MAX_FONT_FILE_BYTES,
+  MAX_USER_FONTS,
+} from "$/utils/import_safety";
+
+export { MAX_COMPRESSED_FONT_BYTES, MAX_FONT_FILE_BYTES } from "$/utils/import_safety";
 
 export const FONT_FILE_ACCEPT = ".ttf,.otf,.woff,.woff2,font/ttf,font/otf,font/woff,font/woff2";
-export const MAX_FONT_FILE_BYTES = 4 * 1024 * 1024;
-export const MAX_COMPRESSED_FONT_BYTES = 1_500_000;
-
-const MIME_BY_EXTENSION: Record<string, string> = {
+const MIME_BY_EXTENSION: Record<string, UserFont["mimeType"]> = {
   ttf: "font/ttf",
   otf: "font/otf",
   woff: "font/woff",
@@ -69,6 +73,9 @@ export const mergeUserFonts = (current: UserFont[], incoming: UserFont[]): UserF
       known.add(key);
     }
   });
+  if (result.length > MAX_USER_FONTS) {
+    throw new Error(`A browser profile can store at most ${MAX_USER_FONTS} custom fonts.`);
+  }
   return result;
 };
 
@@ -118,7 +125,8 @@ const performFontSync = async (fonts: UserFont[]): Promise<void> => {
     if (activeFonts.has(key)) continue;
     try {
       const bytes = base64ToBytes(font.gzippedDataB64);
-      const data = await decompressBuffer(bytes);
+      if (bytes.byteLength > MAX_COMPRESSED_FONT_BYTES) throw new Error("Compressed font data is too large.");
+      const data = await decompressBuffer(bytes, MAX_FONT_FILE_BYTES);
       const face = await new FontFace(font.family, data).load();
       document.fonts.add(face);
       activeFonts.set(key, { face, data: font.gzippedDataB64 });

@@ -1,6 +1,18 @@
 import { LabelType, printTaskNames } from "@mmote/niimbluelib";
 import * as fabric from "fabric";
 import { z } from "zod";
+import {
+  MAX_CANVAS_OBJECTS,
+  MAX_COMPRESSED_FONT_BYTES,
+  MAX_CSV_TEXT_CHARS,
+  MAX_EMBEDDED_FONT_TOTAL_CHARS,
+  MAX_LABEL_DIMENSION,
+  MAX_THUMBNAIL_CHARS,
+  MAX_USER_FONTS,
+  fabricCanvasValidationError,
+  fabricObjectValidationError,
+  isEmbeddedRasterDataUrl,
+} from "$/utils/import_safety";
 
 export type ConnectionState = "connecting" | "connected" | "disconnected";
 export type ConnectionType = "bluetooth" | "serial" | "capacitor-ble";
@@ -37,19 +49,19 @@ type _Range<T extends number, R extends unknown[]> = R["length"] extends T ? R[n
 export type Range<T extends number> = number extends T ? number : _Range<T, []>;
 
 export const CsvParamsSchema = z.object({
-  data: z.string(),
+  data: z.string().max(MAX_CSV_TEXT_CHARS),
 });
 
-/** Not validated */
-export const FabricObjectSchema = z.custom<fabric.FabricObject>((val: any): boolean => {
-  return typeof val === "object";
-});
+export const FabricObjectSchema = z.custom<fabric.FabricObject>(
+  (value) => fabricObjectValidationError(value) === null,
+  "Invalid or unsupported Fabric object",
+);
 
 export const LabelPropsSchema = z.object({
   printDirection: z.enum(["left", "top"]),
   size: z.object({
-    width: z.number().positive(),
-    height: z.number().positive(),
+    width: z.number().positive().max(MAX_LABEL_DIMENSION),
+    height: z.number().positive().max(MAX_LABEL_DIMENSION),
   }),
   shape: z.enum(["rect", "rounded_rect", "circle"]).default("rect").optional(),
   split: z.enum(["none", "vertical", "horizontal"]).default("none").optional(),
@@ -60,8 +72,8 @@ export const LabelPropsSchema = z.object({
 });
 
 export const LabelPresetSchema = z.object({
-  width: z.number().positive(),
-  height: z.number().positive(),
+  width: z.number().positive().max(MAX_LABEL_DIMENSION),
+  height: z.number().positive().max(MAX_LABEL_DIMENSION),
   unit: z.enum(["mm", "px"]),
   dpmm: z.number().positive(),
   printDirection: z.enum(["left", "top"]),
@@ -75,32 +87,40 @@ export const LabelPresetSchema = z.object({
 });
 
 export const FabricJsonSchema = z.object({
-  version: z.string(),
-  objects: z.array(FabricObjectSchema),
+  version: z.string().min(1).max(32),
+  objects: z.array(FabricObjectSchema).max(MAX_CANVAS_OBJECTS),
+}).superRefine((value, context) => {
+  const error = fabricCanvasValidationError(value.objects);
+  if (error) context.addIssue({ code: "custom", message: error, path: ["objects"] });
 });
 
 export const UserFontSchema = z.object({
-  gzippedDataB64: z.string().min(1),
+  gzippedDataB64: z.string().min(1).max(Math.ceil((MAX_COMPRESSED_FONT_BYTES * 4) / 3) + 4).regex(/^[a-z0-9+/]+={0,2}$/i),
   family: z.string().trim().min(1).max(80),
-  mimeType: z.string().min(1),
+  mimeType: z.enum(["font/ttf", "font/otf", "font/woff", "font/woff2"]),
 });
 
 export const ExportedLabelTemplateSchema = z.object({
   canvas: FabricJsonSchema,
   label: LabelPropsSchema,
-  thumbnailBase64: z.string().optional(),
-  title: z.string().optional(),
+  thumbnailBase64: z.string().max(MAX_THUMBNAIL_CHARS).refine(isEmbeddedRasterDataUrl, "Invalid thumbnail data").optional(),
+  title: z.string().max(200).optional(),
   timestamp: z.number().positive().optional(),
   id: z.string().optional(), // filled with localStorage key, not exported
   csv: CsvParamsSchema.optional(),
-  fonts: z.array(UserFontSchema).optional(),
+  fonts: z.array(UserFontSchema).max(MAX_USER_FONTS).optional(),
+}).superRefine((value, context) => {
+  const totalFontChars = value.fonts?.reduce((total, font) => total + font.gzippedDataB64.length, 0) ?? 0;
+  if (totalFontChars > MAX_EMBEDDED_FONT_TOTAL_CHARS) {
+    context.addIssue({ code: "custom", message: "Embedded font data is too large.", path: ["fonts"] });
+  }
 });
 
 export const EditorSessionSchema = z.object({
   version: z.literal(1),
   canvas: FabricJsonSchema,
   label: LabelPropsSchema,
-  title: z.string(),
+  title: z.string().max(200),
   batchEnabled: z.boolean(),
   csv: CsvParamsSchema.optional(),
   dirty: z.boolean(),

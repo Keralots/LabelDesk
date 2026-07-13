@@ -3,6 +3,7 @@
   import { FileUtils } from "$/utils/file_utils";
   import { parseBatchCsv, validateBatchForCanvas } from "$/utils/batch_data";
   import type { BatchParseResult, FabricJson } from "$/types";
+  import { MAX_CSV_TEXT_CHARS } from "$/utils/import_safety";
 
   interface Props {
     open: boolean;
@@ -84,8 +85,14 @@
         <textarea
           id="csv-editor"
           value={$csvData.data}
+          maxlength={MAX_CSV_TEXT_CHARS}
           spellcheck="false"
           oninput={(event) => {
+            if (event.currentTarget.value.length > MAX_CSV_TEXT_CHARS) {
+              importError = "CSV data exceeds the 5 MB editor limit.";
+              return;
+            }
+            importError = "";
             $csvData = { data: event.currentTarget.value };
             enabled = true;
             onChanged();

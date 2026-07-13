@@ -24,4 +24,11 @@ describe("binary compression", () => {
 
     expect(restored).toEqual(source);
   });
+
+  it("stops decompression when the output exceeds its limit", async () => {
+    const source = new TextEncoder().encode("highly-compressible-data".repeat(10_000));
+    const compressed = await compressBuffer(source);
+
+    await expect(decompressBuffer(compressed, 1_024)).rejects.toThrow(/exceeds the allowed size/);
+  });
 });

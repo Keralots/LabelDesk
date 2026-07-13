@@ -1,8 +1,22 @@
 {
 	"name": "labeldesk",
+	"description": "Independent browser-based label designer for NIIMBOT thermal printers",
 	"private": true,
 	"type": "module",
 	"version": "0.1.0",
+	"license": "MIT",
+	"author": "Rafal Stolarek <keralots@gmail.com>",
+	"homepage": "https://keralots.github.io/LabelDesk/",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/Keralots/LabelDesk.git"
+	},
+	"bugs": {
+		"url": "https://github.com/Keralots/LabelDesk/issues"
+	},
+	"engines": {
+		"node": ">=20.19.0"
+	},
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",
@@ -11,6 +25,10 @@
 		"test": "vitest run"
 	},
 	"dependencies": {
+		"@fontsource-variable/noto-sans": "5.2.10",
+		"@fontsource/archivo": "5.2.8",
+		"@fontsource/archivo-black": "5.2.8",
+		"@fontsource/ibm-plex-mono": "5.2.7",
 		"@mmote/niimbluelib": "0.0.1-alpha.40",
 		"d3-dsv": "^3.0.1",
 		"dayjs": "^1.11.21",

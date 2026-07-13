@@ -25,7 +25,28 @@ export const compressBuffer = async (buffer: BufferSource): Promise<ArrayBuffer>
   return new Response(stream).arrayBuffer();
 };
 
-export const decompressBuffer = async (buffer: BufferSource): Promise<ArrayBuffer> => {
+export const decompressBuffer = async (buffer: BufferSource, maximumOutputBytes = Number.POSITIVE_INFINITY): Promise<ArrayBuffer> => {
   const stream = new Blob([asBytes(buffer)]).stream().pipeThrough(new DecompressionStream("gzip"));
-  return new Response(stream).arrayBuffer();
+  const reader = stream.getReader();
+  const chunks: Uint8Array<ArrayBuffer>[] = [];
+  let totalBytes = 0;
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    totalBytes += value.byteLength;
+    if (totalBytes > maximumOutputBytes) {
+      await reader.cancel();
+      throw new Error("Decompressed data exceeds the allowed size.");
+    }
+    chunks.push(new Uint8Array(value));
+  }
+
+  const result = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+  return result.buffer;
 };

@@ -12,7 +12,7 @@
     onLoad: (template: ExportedLabelTemplate) => void | Promise<void>;
     onExport: (includeCsv: boolean, includeFonts: boolean) => void;
     onExportPng: () => void;
-    onImport: () => void;
+    onImport: () => void | Promise<void>;
   }
 
   let {
@@ -81,6 +81,15 @@
     }
   };
 
+  const importLabel = async () => {
+    error = "";
+    try {
+      await onImport();
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : `${caught}`;
+    }
+  };
+
   const close = () => (open = false);
 
   const onKeydown = (e: KeyboardEvent) => {
@@ -125,7 +134,7 @@
       <div class="io-row">
         <button class="btn io" onclick={() => onExport(batchAvailable && includeCsv, embeddableFontCount > 0 && includeFonts)}>Export JSON</button>
         <button class="btn io" onclick={onExportPng}>Export PNG</button>
-        <button class="btn io" onclick={onImport}>Import JSON</button>
+        <button class="btn io" onclick={importLabel}>Import JSON</button>
       </div>
 
       {#if error}

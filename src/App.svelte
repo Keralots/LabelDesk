@@ -18,7 +18,7 @@
   import LibraryDialog from "$/components/LibraryDialog.svelte";
   import { LocalStoragePersistence } from "$/utils/persistence";
   import { UndoRedo } from "$/utils/undo_redo";
-  import type { ExportedLabelTemplate } from "$/types";
+  import type { ExportedLabelTemplate, LabelProps } from "$/types";
   import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
   import type { FabricJson } from "$/types";
 
@@ -29,10 +29,28 @@
   let rev = $state(0);
   let undoDisabled = $state(true);
   let redoDisabled = $state(true);
+  let labelProps = $state<LabelProps>({
+    printDirection: DEFAULT_LABEL_PROPS.printDirection,
+    size: { ...DEFAULT_LABEL_PROPS.size },
+  });
 
   const DPMM = 8; // 203 dpi
 
   const undoRedo = new UndoRedo();
+
+  /** Resize the label (dimensions in millimetres). Undoable. */
+  const applyLabelSize = (widthMm: number, heightMm: number) => {
+    if (!canvas) return;
+    const width = Math.round(widthMm * DPMM);
+    const height = Math.round(heightMm * DPMM);
+    if (width <= 0 || height <= 0) return;
+    if (width === labelProps.size.width && height === labelProps.size.height) return;
+    labelProps = { ...labelProps, size: { width, height } };
+    canvas.setLabelProps(labelProps);
+    canvas.setLabelSize(width, height);
+    rev++;
+    commit();
+  };
 
   const refreshCanvas = () => {
     canvas?.renderAll();
@@ -41,7 +59,7 @@
 
   /** Snapshot the current canvas into undo history. No-op while paused (during restore). */
   const commit = () => {
-    if (canvas) undoRedo.push(canvas, DEFAULT_LABEL_PROPS);
+    if (canvas) undoRedo.push(canvas, labelProps);
   };
 
   /** Prop-panel edits mutate objects programmatically (no fabric event), so commit explicitly. */
@@ -81,8 +99,8 @@
         const dataUrl = await FileUtils.blobToDataUrl(fileList[0]);
         const img = await fabric.FabricImage.fromURL(dataUrl);
         // fit into the label, leaving a small margin
-        const maxW = DEFAULT_LABEL_PROPS.size.width * 0.8;
-        const maxH = DEFAULT_LABEL_PROPS.size.height * 0.8;
+        const maxW = labelProps.size.width * 0.8;
+        const maxH = labelProps.size.height * 0.8;
         const scale = Math.min(maxW / (img.width ?? 1), maxH / (img.height ?? 1), 1);
         img.scale(scale);
         obj = img;
@@ -156,7 +174,7 @@
 
   const saveLabelToLibrary = (title: string) => {
     if (!canvas) return;
-    const tpl = FileUtils.makeExportedLabel(canvas, DEFAULT_LABEL_PROPS, false);
+    const tpl = FileUtils.makeExportedLabel(canvas, labelProps, false);
     if (title) tpl.title = title;
     const existing = LocalStoragePersistence.loadLabels();
     LocalStoragePersistence.saveLabels([...existing, tpl]);
@@ -167,6 +185,11 @@
     undoRedo.paused = true;
     canvas.discardActiveObject();
     selection = null;
+    if (tpl.label?.size) {
+      labelProps = { ...tpl.label, size: { ...tpl.label.size } };
+      canvas.setLabelProps(labelProps);
+      canvas.setLabelSize(labelProps.size.width, labelProps.size.height);
+    }
     await FileUtils.loadCanvasState(canvas, tpl.canvas);
     canvas.renderAll();
     rev++;
@@ -176,10 +199,10 @@
 
   onMount(() => {
     canvas = new CustomCanvas(canvasEl, {
-      width: DEFAULT_LABEL_PROPS.size.width,
-      height: DEFAULT_LABEL_PROPS.size.height,
+      width: labelProps.size.width,
+      height: labelProps.size.height,
     });
-    canvas.setLabelProps(DEFAULT_LABEL_PROPS);
+    canvas.setLabelProps(labelProps);
     canvas.onZoomChange = (zoom) => {
       zoomPercent = Math.round(zoom * 100);
     };
@@ -202,6 +225,12 @@
       undoRedo.paused = true;
       canvas.discardActiveObject();
       selection = null;
+      const sz = data.label?.size;
+      if (sz && (sz.width !== labelProps.size.width || sz.height !== labelProps.size.height)) {
+        labelProps = { ...data.label, size: { ...sz } };
+        canvas.setLabelProps(labelProps);
+        canvas.setLabelSize(sz.width, sz.height);
+      }
       await FileUtils.loadCanvasState(canvas, data.canvas);
       canvas.renderAll();
       rev++;
@@ -211,8 +240,8 @@
     // OBJECT_DEFAULTS_TEXT uses center origin - left/top are the CENTER point
     const text = new TextboxExt("LabelDesk", {
       ...OBJECT_DEFAULTS_TEXT,
-      left: DEFAULT_LABEL_PROPS.size.width / 2,
-      top: DEFAULT_LABEL_PROPS.size.height / 2,
+      left: labelProps.size.width / 2,
+      top: labelProps.size.height / 2,
       fontSize: 32,
     });
     canvas.add(text);
@@ -247,7 +276,9 @@
         ↻
       </button>
     </div>
-    <div class="doc-chip">Untitled · 30.0 × 12.0 mm · 203 dpi</div>
+    <div class="doc-chip">
+      Untitled · {(labelProps.size.width / DPMM).toFixed(1)} × {(labelProps.size.height / DPMM).toFixed(1)} mm · 203 dpi
+    </div>
     <button
       class="chip"
       class:connected={$connectionState === "connected"}
@@ -269,7 +300,7 @@
     <button class="btn-print" onclick={() => (printDialogOpen = true)}>Print</button>
   </header>
 
-  <PrintDialog bind:open={printDialogOpen} {getCanvasJson} labelProps={DEFAULT_LABEL_PROPS} dpmm={DPMM} />
+  <PrintDialog bind:open={printDialogOpen} {getCanvasJson} {labelProps} dpmm={DPMM} />
   <LibraryDialog bind:open={libraryOpen} onSave={saveLabelToLibrary} onLoad={loadLabelFromLibrary} />
 
   <div class="main">
@@ -289,10 +320,11 @@
     <PropsPanel
       {selection}
       {rev}
-      labelProps={DEFAULT_LABEL_PROPS}
+      {labelProps}
       dpmm={DPMM}
       onChanged={onPropChanged}
       onDelete={deleteSelection}
+      onLabelSize={applyLabelSize}
     />
   </div>
 

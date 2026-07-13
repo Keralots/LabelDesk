@@ -4,6 +4,7 @@
   import Barcode from "$/fabric-object/barcode";
   import QRCode from "$/fabric-object/qrcode";
   import type { LabelProps } from "$/types";
+  import { DEFAULT_LABEL_PRESETS } from "$/defaults";
 
   interface Props {
     selection: fabric.FabricObject | null;
@@ -13,12 +14,28 @@
     dpmm: number;
     onChanged: () => void;
     onDelete: () => void;
+    /** apply a new label size (millimetres) */
+    onLabelSize: (widthMm: number, heightMm: number) => void;
   }
 
-  let { selection, rev, labelProps, dpmm, onChanged, onDelete }: Props = $props();
+  let { selection, rev, labelProps, dpmm, onChanged, onDelete, onLabelSize }: Props = $props();
 
   const px2mm = (px: number) => Math.round((px / dpmm) * 10) / 10;
   const mm2px = (mm: number) => mm * dpmm;
+
+  // Size presets available at the current resolution (D110 = 8 px/mm).
+  const sizePresets = DEFAULT_LABEL_PRESETS.filter((p) => p.dpmm === dpmm);
+
+  const setLabelDim = (dim: "width" | "height", value: string) => {
+    const num = parseFloat(value);
+    if (isNaN(num) || num <= 0) return;
+    const wMm = px2mm(labelProps.size.width);
+    const hMm = px2mm(labelProps.size.height);
+    onLabelSize(dim === "width" ? num : wMm, dim === "height" ? num : hMm);
+  };
+
+  const presetActive = (wMm: number, hMm: number) =>
+    px2mm(labelProps.size.width) === wMm && px2mm(labelProps.size.height) === hMm;
 
   const objectTitle = (obj: fabric.FabricObject): string => {
     if (obj instanceof TextboxExt) return "Text";
@@ -148,19 +165,32 @@
       </div>
     {/key}
   {:else}
-    <div class="sec">
-      <h3>Label</h3>
-      <div class="grid2">
-        <div class="field">
-          <label for="pp-lw">W · mm</label>
-          <div class="v ro" id="pp-lw">{px2mm(labelProps.size.width)}</div>
+    {#key `${labelProps.size.width}x${labelProps.size.height}`}
+      <div class="sec">
+        <h3>Label size</h3>
+        <div class="grid2">
+          <div class="field">
+            <label for="pp-lw">W · mm</label>
+            <input id="pp-lw" class="v" type="number" min="1" step="1" value={px2mm(labelProps.size.width)}
+              onchange={(e) => setLabelDim("width", e.currentTarget.value)} />
+          </div>
+          <div class="field">
+            <label for="pp-lh">H · mm</label>
+            <input id="pp-lh" class="v" type="number" min="1" step="1" value={px2mm(labelProps.size.height)}
+              onchange={(e) => setLabelDim("height", e.currentTarget.value)} />
+          </div>
         </div>
-        <div class="field">
-          <label for="pp-lh">H · mm</label>
-          <div class="v ro" id="pp-lh">{px2mm(labelProps.size.height)}</div>
-        </div>
+        {#if sizePresets.length}
+          <div class="presets">
+            {#each sizePresets as p (p.width + "x" + p.height)}
+              <button class:on={presetActive(p.width, p.height)} onclick={() => onLabelSize(p.width, p.height)}>
+                {p.width}×{p.height}
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
-    </div>
+    {/key}
     <div class="sec hint">Add an object from the left rail, or click one on the canvas to edit it. Double-click text to type.</div>
   {/if}
 </div>
@@ -288,6 +318,36 @@
 
   .seg button.on {
     background: var(--ink);
+    color: var(--paper);
+  }
+
+  .presets {
+    display: flex;
+    gap: 6px;
+    margin-top: 10px;
+  }
+
+  .presets button {
+    flex: 1;
+    border: 1.5px solid var(--line-2);
+    border-radius: 4px;
+    background: var(--raised);
+    padding: 6px 0;
+    font-family: var(--font-mono);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+
+  .presets button:hover {
+    border-color: var(--ink);
+    color: var(--ink);
+  }
+
+  .presets button.on {
+    background: var(--ink);
+    border-color: var(--ink);
     color: var(--paper);
   }
 

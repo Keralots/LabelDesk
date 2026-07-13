@@ -194,6 +194,16 @@ export class CustomCanvas extends fabric.Canvas {
     this.requestRenderAll();
   }
 
+  /**
+   * Resize the label to new pixel dimensions. Updates the logical (backstore)
+   * size, then re-applies the current virtual zoom so CSS size and the retina
+   * backing store stay in sync and the label background repaints.
+   */
+  setLabelSize(width: number, height: number) {
+    this.setDimensions({ width, height }, { backstoreOnly: true });
+    this.virtualZoom(this.virtualZoomRatio);
+  }
+
   setCustomBackground(value: boolean) {
     this.customBackground = value;
   }

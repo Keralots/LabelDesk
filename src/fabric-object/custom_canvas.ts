@@ -1,6 +1,7 @@
 import * as fabric from "fabric";
 import { DEFAULT_LABEL_PROPS, GRID_SIZE } from "$/defaults";
 import type { LabelProps } from "$/types";
+import { findSmartSnap, insetBounds, type EditorBounds } from "$/utils/editor_layout";
 
 type LabelBounds = {
   startX: number;
@@ -29,6 +30,10 @@ export class CustomCanvas extends fabric.Canvas {
   private highlightMirror: boolean = true;
   private gridEnabled: boolean = false;
   private gridSnap: boolean = false;
+  private safeAreaVisible: boolean = false;
+  private smartSnap: boolean = false;
+  private smartGuideX?: number;
+  private smartGuideY?: number;
   private virtualZoomRatio: number = 1;
   onZoomChange?: (zoom: number) => void;
 
@@ -40,14 +45,49 @@ export class CustomCanvas extends fabric.Canvas {
     this.setupZoomAndPan();
     this.preserveObjectStacking = true;
 
-    // Snap object movement to the grid when enabled.
+    // Snap movement to the optional grid, safe area and nearby objects.
     this.on("object:moving", (e) => {
-      if (!this.gridSnap || !e.target) return;
-      e.target.set({
-        left: Math.round((e.target.left ?? 0) / GRID_SIZE) * GRID_SIZE,
-        top: Math.round((e.target.top ?? 0) / GRID_SIZE) * GRID_SIZE,
-      });
+      const target = e.target;
+      if (!target) return;
+      if (this.gridSnap) {
+        target.set({
+          left: Math.round((target.left ?? 0) / GRID_SIZE) * GRID_SIZE,
+          top: Math.round((target.top ?? 0) / GRID_SIZE) * GRID_SIZE,
+        });
+        target.setCoords();
+      }
+
+      this.smartGuideX = undefined;
+      this.smartGuideY = undefined;
+      if (this.smartSnap) {
+        const movingObjects = new Set(
+          target instanceof fabric.ActiveSelection ? target.getObjects() : [target],
+        );
+        const targets: EditorBounds[] = [
+          this.getSafeAreaBounds(),
+          ...this.getObjects()
+            .filter((object) => !movingObjects.has(object) && object.visible)
+            .map((object) => object.getBoundingRect()),
+        ];
+        const snap = findSmartSnap(target.getBoundingRect(), targets, 4 / this.virtualZoomRatio);
+        if (snap.dx || snap.dy) {
+          const position = target.getXY();
+          target.setXY(new fabric.Point(position.x + snap.dx, position.y + snap.dy));
+          target.setCoords();
+        }
+        this.smartGuideX = snap.guideX;
+        this.smartGuideY = snap.guideY;
+      }
+      this.requestRenderAll();
     });
+    const clearSmartGuides = () => {
+      if (this.smartGuideX === undefined && this.smartGuideY === undefined) return;
+      this.smartGuideX = undefined;
+      this.smartGuideY = undefined;
+      this.requestRenderAll();
+    };
+    this.on("object:modified", clearSmartGuides);
+    this.on("mouse:up", clearSmartGuides);
   }
 
   private setupZoomAndPan() {
@@ -133,7 +173,7 @@ export class CustomCanvas extends fabric.Canvas {
             const dx = currentMidPoint.x - lastMidPoint.x;
             const dy = currentMidPoint.y - lastMidPoint.y;
 
-            const wrapper = this.getElement().closest(".canvas-wrapper");
+            const wrapper = this.getElement().closest(".canvas-area");
             if (wrapper) {
               wrapper.scrollLeft -= dx;
               wrapper.scrollTop -= dy;
@@ -231,6 +271,20 @@ export class CustomCanvas extends fabric.Canvas {
     this.gridSnap = value;
   }
 
+  setSafeAreaVisible(value: boolean) {
+    this.safeAreaVisible = value;
+    this.requestRenderAll();
+  }
+
+  setSmartSnap(value: boolean) {
+    this.smartSnap = value;
+    if (!value) {
+      this.smartGuideX = undefined;
+      this.smartGuideY = undefined;
+    }
+    this.requestRenderAll();
+  }
+
   /** Get label bounds without tail */
   getLabelBounds(): LabelBounds {
     let endX = this.width ?? 1;
@@ -252,6 +306,51 @@ export class CustomCanvas extends fabric.Canvas {
     const height = endY - startY;
 
     return { startX, startY, endX, endY, width, height };
+  }
+
+  getSafeAreaBounds(): EditorBounds {
+    const bounds = this.getLabelBounds();
+    return insetBounds({ left: bounds.startX, top: bounds.startY, width: bounds.width, height: bounds.height });
+  }
+
+  /** Draw editor-only overlays on the upper canvas so exports stay clean. */
+  override renderTop() {
+    super.renderTop();
+    if (!this.safeAreaVisible && this.smartGuideX === undefined && this.smartGuideY === undefined) return;
+
+    const ctx = this.contextTop;
+    const label = this.getLabelBounds();
+    ctx.save();
+    if (this.safeAreaVisible) {
+      const safe = this.getSafeAreaBounds();
+      ctx.strokeStyle = "rgba(211, 61, 46, 0.62)";
+      ctx.lineWidth = 1 / this.virtualZoomRatio;
+      ctx.setLineDash([4 / this.virtualZoomRatio, 3 / this.virtualZoomRatio]);
+      ctx.strokeRect(safe.left, safe.top, safe.width, safe.height);
+    }
+    ctx.strokeStyle = "rgba(26, 111, 178, 0.9)";
+    ctx.lineWidth = 1 / this.virtualZoomRatio;
+    ctx.setLineDash([]);
+    if (this.smartGuideX !== undefined) {
+      ctx.beginPath();
+      ctx.moveTo(this.smartGuideX, label.startY);
+      ctx.lineTo(this.smartGuideX, label.endY);
+      ctx.stroke();
+    }
+    if (this.smartGuideY !== undefined) {
+      ctx.beginPath();
+      ctx.moveTo(label.startX, this.smartGuideY);
+      ctx.lineTo(label.endX, this.smartGuideY);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  override renderAll() {
+    super.renderAll();
+    // Fabric only refreshes the upper canvas when controls are dirty. Editor
+    // guides live there as well, so make their repaint deterministic.
+    this.renderTop();
   }
 
   /** Get fold line position for splitted labels */

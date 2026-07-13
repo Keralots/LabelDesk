@@ -12,12 +12,15 @@
     type SelectionAlignment,
     type SelectionDistribution,
   } from "$/utils/selection_utils";
+  import { insetBounds } from "$/utils/editor_layout";
+  import { applyCropInsets, readCropInsets, type CropInsets } from "$/utils/image_edit";
 
   interface Props {
     selection: fabric.FabricObject | null;
     /** bumped by the parent on object:modified so displayed values refresh */
     rev: number;
     labelProps: LabelProps;
+    safeAreaBounds?: { left: number; top: number; width: number; height: number };
     dpmm: number;
     customFontFamilies: string[];
     missingFontFamilies: string[];
@@ -25,6 +28,7 @@
     onDelete: () => void;
     onGroup: () => void;
     onUngroup: () => void;
+    onReplaceImage: (image: fabric.FabricImage) => void;
     /** apply a new label size (millimetres) */
     onLabelSize: (widthMm: number, heightMm: number) => void;
     /** update non-dimension label properties (shape, split, mirror) */
@@ -35,6 +39,7 @@
     selection,
     rev,
     labelProps,
+    safeAreaBounds,
     dpmm,
     customFontFamilies,
     missingFontFamilies,
@@ -42,6 +47,7 @@
     onDelete,
     onGroup,
     onUngroup,
+    onReplaceImage,
     onLabelSize,
     onLabelProps,
   }: Props = $props();
@@ -122,11 +128,11 @@
     onChanged();
   };
 
-  const alignToLabel = (alignment: SelectionAlignment) => {
+  const alignToSafeArea = (alignment: SelectionAlignment) => {
     if (!selection) return;
     alignObjectToBounds(
       selection,
-      { left: 0, top: 0, width: labelProps.size.width, height: labelProps.size.height },
+      safeAreaBounds ?? insetBounds({ left: 0, top: 0, width: labelProps.size.width, height: labelProps.size.height }),
       alignment,
     );
     onChanged();
@@ -223,6 +229,33 @@
     selection.setCoords();
     onChanged();
   };
+
+  const setImageCrop = (side: keyof CropInsets, value: string) => {
+    if (!(selection instanceof fabric.FabricImage)) return;
+    const parsed = Number(value);
+    if (!Number.isFinite(parsed)) return;
+    applyCropInsets(selection, { ...readCropInsets(selection), [side]: parsed });
+    onChanged();
+  };
+
+  const resetImageCrop = () => {
+    if (!(selection instanceof fabric.FabricImage)) return;
+    applyCropInsets(selection, { left: 0, top: 0, right: 0, bottom: 0 });
+    onChanged();
+  };
+
+  const toggleImageFilter = (type: "Invert" | "BlackWhite") => {
+    if (!(selection instanceof fabric.FabricImage)) return;
+    const existing = selection.filters.findIndex((filter) => filter.type === type);
+    if (existing >= 0) selection.filters.splice(existing, 1);
+    else selection.filters.push(type === "Invert" ? new fabric.filters.Invert() : new fabric.filters.BlackWhite());
+    selection.applyFilters();
+    selection.dirty = true;
+    onChanged();
+  };
+
+  const hasImageFilter = (image: fabric.FabricImage, type: string) =>
+    image.filters.some((filter) => filter.type === type);
 </script>
 
 <div class="props">
@@ -285,14 +318,14 @@
             <button onclick={() => distributeSelection("horizontal")} disabled={selection.size() < 3}>H gaps</button>
             <button onclick={() => distributeSelection("vertical")} disabled={selection.size() < 3}>V gaps</button>
           </div>
-          <h3 class="subhead">Align selection to label</h3>
+          <h3 class="subhead">Align selection to safe area</h3>
           <div class="arrange align-grid">
-            <button onclick={() => alignToLabel("left")}>Left</button>
-            <button onclick={() => alignToLabel("center-h")}>Center H</button>
-            <button onclick={() => alignToLabel("right")}>Right</button>
-            <button onclick={() => alignToLabel("top")}>Top</button>
-            <button onclick={() => alignToLabel("center-v")}>Center V</button>
-            <button onclick={() => alignToLabel("bottom")}>Bottom</button>
+            <button onclick={() => alignToSafeArea("left")}>Left</button>
+            <button onclick={() => alignToSafeArea("center-h")}>Center H</button>
+            <button onclick={() => alignToSafeArea("right")}>Right</button>
+            <button onclick={() => alignToSafeArea("top")}>Top</button>
+            <button onclick={() => alignToSafeArea("center-v")}>Center V</button>
+            <button onclick={() => alignToSafeArea("bottom")}>Bottom</button>
           </div>
           <h3 class="subhead">Layer</h3>
           <div class="arrange">
@@ -301,14 +334,14 @@
           </div>
           <button class="fit-btn group-btn" onclick={onGroup}>Group selection</button>
         {:else}
-          <h3 class="subhead first">Align to label</h3>
+          <h3 class="subhead first">Align to safe area</h3>
           <div class="arrange align-grid">
-            <button onclick={() => alignToLabel("left")}>Left</button>
-            <button onclick={() => alignToLabel("center-h")}>Center H</button>
-            <button onclick={() => alignToLabel("right")}>Right</button>
-            <button onclick={() => alignToLabel("top")}>Top</button>
-            <button onclick={() => alignToLabel("center-v")}>Center V</button>
-            <button onclick={() => alignToLabel("bottom")}>Bottom</button>
+            <button onclick={() => alignToSafeArea("left")}>Left</button>
+            <button onclick={() => alignToSafeArea("center-h")}>Center H</button>
+            <button onclick={() => alignToSafeArea("right")}>Right</button>
+            <button onclick={() => alignToSafeArea("top")}>Top</button>
+            <button onclick={() => alignToSafeArea("center-v")}>Center V</button>
+            <button onclick={() => alignToSafeArea("bottom")}>Bottom</button>
           </div>
           <h3 class="subhead">Layer</h3>
           <div class="arrange">
@@ -457,9 +490,25 @@
           </div>
         </div>
       {:else if selection instanceof fabric.FabricImage}
+        {@const crop = readCropInsets(selection)}
         <div class="sec">
           <h3>Image</h3>
-          <button class="fit-btn" onclick={fitImageToLabel}>Fit to label</button>
+          <div class="image-actions">
+            <button onclick={() => onReplaceImage(selection)}>Replace</button>
+            <button onclick={fitImageToLabel}>Fit to label</button>
+            <button class:on={selection.flipX} onclick={() => setObjProp("flipX", !selection.flipX)}>Flip H</button>
+            <button class:on={selection.flipY} onclick={() => setObjProp("flipY", !selection.flipY)}>Flip V</button>
+            <button class:on={hasImageFilter(selection, "Invert")} onclick={() => toggleImageFilter("Invert")}>Invert</button>
+            <button class:on={hasImageFilter(selection, "BlackWhite")} onclick={() => toggleImageFilter("BlackWhite")}>1-bit preview</button>
+          </div>
+          <h3 class="subhead">Crop inset · %</h3>
+          <div class="grid2 crop-grid">
+            <div class="field"><label for="crop-l">Left</label><input id="crop-l" class="v" type="number" min="0" max="45" value={crop.left} onchange={(e) => setImageCrop("left", e.currentTarget.value)} /></div>
+            <div class="field"><label for="crop-r">Right</label><input id="crop-r" class="v" type="number" min="0" max="45" value={crop.right} onchange={(e) => setImageCrop("right", e.currentTarget.value)} /></div>
+            <div class="field"><label for="crop-t">Top</label><input id="crop-t" class="v" type="number" min="0" max="45" value={crop.top} onchange={(e) => setImageCrop("top", e.currentTarget.value)} /></div>
+            <div class="field"><label for="crop-b">Bottom</label><input id="crop-b" class="v" type="number" min="0" max="45" value={crop.bottom} onchange={(e) => setImageCrop("bottom", e.currentTarget.value)} /></div>
+          </div>
+          <button class="fit-btn crop-reset" onclick={resetImageCrop}>Reset crop</button>
         </div>
       {/if}
 
@@ -753,6 +802,34 @@
     cursor: default;
     border-color: var(--line-2);
     color: var(--ink-3);
+  }
+
+  .image-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+
+  .image-actions button {
+    border: 1.5px solid var(--line-2);
+    border-radius: 4px;
+    background: var(--raised);
+    padding: 7px 4px;
+    font-family: var(--font-ui);
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ink-2);
+    cursor: pointer;
+  }
+
+  .image-actions button.on {
+    color: var(--paper);
+    background: var(--ink);
+    border-color: var(--ink);
+  }
+
+  .crop-reset {
+    margin-top: 8px;
   }
 
   .presets {

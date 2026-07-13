@@ -19,6 +19,9 @@
   import LibraryDialog from "$/components/LibraryDialog.svelte";
   import DataDialog from "$/components/DataDialog.svelte";
   import FontsDialog from "$/components/FontsDialog.svelte";
+  import LayersPanel from "$/components/LayersPanel.svelte";
+  import CanvasContextMenu from "$/components/CanvasContextMenu.svelte";
+  import ShortcutsDialog from "$/components/ShortcutsDialog.svelte";
   import { LocalStoragePersistence } from "$/utils/persistence";
   import { UndoRedo } from "$/utils/undo_redo";
   import { ExportedLabelTemplateSchema, LabelPropsSchema } from "$/types";
@@ -34,9 +37,11 @@
     missingFontFamilies as findMissingFontFamilies,
     syncUserFonts,
   } from "$/utils/font_utils";
+  import { isObjectLocked, restoreObjectLock, setObjectLocked } from "$/utils/layer_utils";
 
   let canvasEl: HTMLCanvasElement;
-  let canvas: CustomCanvas | undefined;
+  let canvasAreaEl: HTMLElement;
+  let canvas = $state<CustomCanvas | undefined>();
   let zoomPercent = $state(100);
   let selection = $state<fabric.FabricObject | null>(null);
   let rev = $state(0);
@@ -50,6 +55,11 @@
   let dirty = $state(false);
   let autosaveState = $state<"idle" | "saving" | "saved" | "error">("idle");
   let batchEnabled = $state(false);
+  let layersOpen = $state(false);
+  let shortcutsOpen = $state(false);
+  let safeAreaVisible = $state(true);
+  let smartSnap = $state(true);
+  let contextMenu = $state({ open: false, x: 0, y: 0 });
   const batchRowCount = $derived(parseBatchCsv($csvData.data).rows.length);
   const usedFontFamilies = $derived.by(() => {
     void rev;
@@ -152,6 +162,11 @@
     if (width === labelProps.size.width && height === labelProps.size.height) return;
     labelProps = { ...labelProps, size: { width, height } };
     canvas.setLabelProps(labelProps);
+    canvas.setSafeAreaVisible(safeAreaVisible);
+    canvas.setSmartSnap(smartSnap);
+    canvas.on("object:added", (event) => {
+      if (event.target) restoreObjectLock(event.target);
+    });
     canvas.setLabelSize(width, height);
     rev++;
     commit();
@@ -200,6 +215,23 @@
     void undoRedo.redo();
   };
 
+  const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/bmp", "image/webp"];
+  const pickFabricImage = async (): Promise<fabric.FabricImage | null> => {
+    const fileList = await FileUtils.pickFileAsync(SUPPORTED_IMAGE_TYPES.join(","), false);
+    const file = fileList[0];
+    if (!file || !SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+      console.error("Unsupported image type:", file?.type || "(none)");
+      return null;
+    }
+    const dataUrl = await FileUtils.blobToDataUrl(file);
+    const image = await fabric.FabricImage.fromURL(dataUrl);
+    if (!image.width || !image.height) {
+      console.error("Image failed to decode:", file.name);
+      return null;
+    }
+    return image;
+  };
+
   const addObject = async (kind: ToolKind) => {
     if (!canvas) return;
     let obj: fabric.FabricObject | undefined;
@@ -223,21 +255,9 @@
         { ...OBJECT_DEFAULTS_VECTOR },
       );
     } else if (kind === "image") {
-      // Only raster formats that fabric's FabricImage.fromURL can actually decode.
-      const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/bmp", "image/webp"];
       try {
-        const fileList = await FileUtils.pickFileAsync(SUPPORTED_IMAGE_TYPES.join(","), false);
-        const file = fileList[0];
-        if (!file || !SUPPORTED_IMAGE_TYPES.includes(file.type)) {
-          console.error("Unsupported image type:", file?.type || "(none)");
-          return;
-        }
-        const dataUrl = await FileUtils.blobToDataUrl(file);
-        const img = await fabric.FabricImage.fromURL(dataUrl);
-        if (!img.width || !img.height) {
-          console.error("Image failed to decode:", file.name);
-          return;
-        }
+        const img = await pickFabricImage();
+        if (!img) return;
         // fit into the label, leaving a small margin
         const maxW = labelProps.size.width * 0.8;
         const maxH = labelProps.size.height * 0.8;
@@ -258,6 +278,26 @@
     commit();
   };
 
+  const replaceImage = async (target: fabric.FabricImage) => {
+    try {
+      const replacement = await pickFabricImage();
+      if (!replacement?.width || !replacement.height || !canvas || !canvas.getObjects().includes(target)) return;
+      const frameWidth = target.getScaledWidth();
+      const frameHeight = target.getScaledHeight();
+      const center = target.getCenterPoint();
+      const scale = Math.min(frameWidth / replacement.width, frameHeight / replacement.height);
+      target.setElement(replacement.getElement(), { width: replacement.width, height: replacement.height });
+      target.set({ cropX: 0, cropY: 0, scaleX: scale, scaleY: scale });
+      target.setPositionByOrigin(center, "center", "center");
+      target.applyFilters();
+      target.setCoords();
+      refreshCanvas();
+      commit();
+    } catch (error) {
+      console.error("Image replacement failed:", error);
+    }
+  };
+
   const addPlaceholder = (column: string) => {
     if (!canvas) return;
     const obj = new TextboxExt(`{${column}}`, { ...OBJECT_DEFAULTS_TEXT, fontSize: 24 });
@@ -275,6 +315,56 @@
     active.forEach((o) => canvas?.remove(o));
     refreshCanvas();
     commit();
+  };
+
+  const selectFromLayers = (object: fabric.FabricObject | null) => {
+    selection = object;
+    rev++;
+  };
+
+  const arrangeSelection = (position: "front" | "back") => {
+    const active = canvas?.getActiveObject();
+    if (!canvas || !active) return;
+    if (position === "front") canvas.bringObjectToFront(active);
+    else canvas.sendObjectToBack(active);
+    refreshCanvas();
+    commit();
+  };
+
+  const lockSelection = () => {
+    if (!canvas) return;
+    const objects = canvas.getActiveObjects();
+    if (!objects.length) return;
+    objects.forEach((object) => setObjectLocked(object, true));
+    canvas.discardActiveObject();
+    selection = null;
+    refreshCanvas();
+    commit();
+  };
+
+  const hideSelection = () => {
+    if (!canvas) return;
+    const objects = canvas.getActiveObjects();
+    if (!objects.length) return;
+    objects.forEach((object) => object.set("visible", false));
+    canvas.discardActiveObject();
+    selection = null;
+    refreshCanvas();
+    commit();
+  };
+
+  const openCanvasContextMenu = (event: MouseEvent) => {
+    if (event.target instanceof Element && event.target.closest(".zoom-cluster")) return;
+    event.preventDefault();
+    if (!canvas) return;
+    const target = canvas.findTarget(event).target;
+    if (target && target.visible && !isObjectLocked(target) && !canvas.getActiveObjects().includes(target)) {
+      canvas.discardActiveObject();
+      canvas.setActiveObject(target);
+      selection = target;
+      canvas.renderAll();
+    }
+    contextMenu = { open: true, x: event.clientX, y: event.clientY };
   };
 
   const groupSelection = () => {
@@ -350,7 +440,7 @@
   };
 
   let clipboardSource: Promise<fabric.FabricObject | null> = Promise.resolve(null);
-  let clipboardAvailable = false;
+  let clipboardAvailable = $state(false);
   let pasteOffset = 0;
   let pasteQueue = Promise.resolve();
 
@@ -414,6 +504,8 @@
 
   // Arrow-key nudge. Moves are coalesced into one undo step per key press (see onKeyup).
   let nudgePending = false;
+  let spaceHeld = false;
+  let panState = $state<{ pointerId: number; x: number; y: number; scrollLeft: number; scrollTop: number } | null>(null);
   const nudge = (dx: number, dy: number) => {
     if (!canvas) return;
     const active = canvas.getActiveObject();
@@ -424,7 +516,8 @@
     rev++;
     nudgePending = true;
   };
-  const onKeyup = () => {
+  const onKeyup = (event: KeyboardEvent) => {
+    if (event.code === "Space") spaceHeld = false;
     if (nudgePending) {
       nudgePending = false;
       commit();
@@ -439,7 +532,39 @@
     const modifier = e.ctrlKey || e.metaKey;
     const key = e.key.toLocaleLowerCase();
 
-    if (printDialogOpen || libraryOpen || dataDialogOpen || fontsDialogOpen) return;
+    if (e.key === "Escape" && contextMenu.open) {
+      contextMenu.open = false;
+      return;
+    }
+    if (e.key === "Escape" && shortcutsOpen) {
+      shortcutsOpen = false;
+      return;
+    }
+
+    if (!inField && !editingText && !printDialogOpen && !libraryOpen && !dataDialogOpen && !fontsDialogOpen) {
+      if (e.code === "Space") {
+        e.preventDefault();
+        spaceHeld = true;
+        return;
+      }
+      if (key === "?") {
+        e.preventDefault();
+        shortcutsOpen = true;
+        return;
+      }
+      if (modifier && key === "0") {
+        e.preventDefault();
+        zoomToFit();
+        return;
+      }
+      if (modifier && key === "1") {
+        e.preventDefault();
+        canvas?.resetVirtualZoom();
+        return;
+      }
+    }
+
+    if (printDialogOpen || libraryOpen || dataDialogOpen || fontsDialogOpen || shortcutsOpen) return;
 
     if (modifier && key === "z") {
       if (inField || editingText) return;
@@ -719,6 +844,8 @@
 
       if (disposed || !canvas) return;
       canvas.virtualZoom(2);
+      canvas.setSafeAreaVisible(safeAreaVisible);
+      canvas.setSmartSnap(smartSnap);
       canvas.renderAll();
       rev++;
       undoRedo.paused = false;
@@ -747,6 +874,48 @@
 
   const zoomIn = () => canvas?.virtualZoomIn();
   const zoomOut = () => canvas?.virtualZoomOut();
+  const zoomToFit = () => {
+    if (!canvas || !canvasAreaEl) return;
+    const availableWidth = Math.max(1, canvasAreaEl.clientWidth - 96);
+    const availableHeight = Math.max(1, canvasAreaEl.clientHeight - 96);
+    canvas.virtualZoom(Math.min(availableWidth / canvas.getWidth(), availableHeight / canvas.getHeight(), 4));
+  };
+
+  const startPan = (event: PointerEvent) => {
+    if (event.button === 2) {
+      // Keep the current selection until the context-menu handler decides
+      // whether another object was clicked.
+      event.stopPropagation();
+      return;
+    }
+    if (event.button !== 1 && !(spaceHeld && event.button === 0)) return;
+    event.preventDefault();
+    event.stopPropagation();
+    contextMenu.open = false;
+    const area = event.currentTarget as HTMLElement;
+    area.setPointerCapture(event.pointerId);
+    panState = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      scrollLeft: area.scrollLeft,
+      scrollTop: area.scrollTop,
+    };
+    if (canvas) canvas.selection = false;
+  };
+
+  const movePan = (event: PointerEvent) => {
+    if (!panState || event.pointerId !== panState.pointerId) return;
+    const area = event.currentTarget as HTMLElement;
+    area.scrollLeft = panState.scrollLeft - (event.clientX - panState.x);
+    area.scrollTop = panState.scrollTop - (event.clientY - panState.y);
+  };
+
+  const endPan = (event: PointerEvent) => {
+    if (!panState || event.pointerId !== panState.pointerId) return;
+    panState = null;
+    if (canvas) canvas.selection = true;
+  };
 
   let gridSnap = $state(false);
   const toggleGridSnap = () => {
@@ -754,6 +923,14 @@
     canvas?.setGridEnabled(gridSnap);
     canvas?.setGridSnap(gridSnap);
     refreshCanvas();
+  };
+  const toggleSafeArea = () => {
+    safeAreaVisible = !safeAreaVisible;
+    canvas?.setSafeAreaVisible(safeAreaVisible);
+  };
+  const toggleSmartSnap = () => {
+    smartSnap = !smartSnap;
+    canvas?.setSmartSnap(smartSnap);
   };
 </script>
 
@@ -769,6 +946,8 @@
     <button class="menu-btn" class:warning={missingFontFamilies.length > 0} onclick={() => (fontsDialogOpen = true)}>
       Fonts{missingFontFamilies.length > 0 ? ` (${missingFontFamilies.length} missing)` : ""}
     </button>
+    <button class="menu-btn" class:active={layersOpen} onclick={() => (layersOpen = !layersOpen)}>Layers</button>
+    <button class="menu-btn shortcuts-btn" title="Keyboard shortcuts" onclick={() => (shortcutsOpen = true)}>?</button>
     <div class="undo-cluster">
       <button class="icon-btn" title="Undo (Ctrl+Z)" disabled={undoDisabled} onclick={undo} aria-label="Undo">
         ↺
@@ -835,25 +1014,66 @@
     onExportPng={exportLabelPng}
     onImport={importLabelJson}
   />
+  <ShortcutsDialog open={shortcutsOpen} onClose={() => (shortcutsOpen = false)} />
+  <CanvasContextMenu
+    open={contextMenu.open}
+    x={contextMenu.x}
+    y={contextMenu.y}
+    hasSelection={Boolean(selection)}
+    canPaste={clipboardAvailable}
+    canGroup={selection instanceof fabric.ActiveSelection}
+    canUngroup={selection instanceof fabric.Group && !(selection instanceof fabric.ActiveSelection)}
+    onClose={() => (contextMenu.open = false)}
+    onCopy={copySelection}
+    onCut={() => void cutSelection()}
+    onPaste={() => void pasteSelection()}
+    onDuplicate={() => void duplicateSelection()}
+    onDelete={deleteSelection}
+    onGroup={groupSelection}
+    onUngroup={ungroupSelection}
+    onFront={() => arrangeSelection("front")}
+    onBack={() => arrangeSelection("back")}
+    onLock={lockSelection}
+    onHide={hideSelection}
+    onShortcuts={() => (shortcutsOpen = true)}
+  />
 
   <div class="main">
     <ToolRail onAdd={addObject} />
 
-    <main class="canvas-area">
-      <div class="canvas-holder">
-        <canvas bind:this={canvasEl}></canvas>
+    <main
+      class="canvas-area"
+      class:panning={panState !== null}
+      bind:this={canvasAreaEl}
+      oncontextmenucapture={openCanvasContextMenu}
+      onpointerdowncapture={startPan}
+      onpointermove={movePan}
+      onpointerup={endPan}
+      onpointercancel={endPan}
+    >
+      <div class="canvas-stage">
+        <div class="canvas-holder">
+          <canvas bind:this={canvasEl}></canvas>
+        </div>
       </div>
       <div class="zoom-cluster">
         <button onclick={zoomOut}>−</button>
         <span class="z">{zoomPercent}%</span>
         <button onclick={zoomIn}>+</button>
+        <button class="zoom-text" onclick={zoomToFit} title="Zoom to fit (Ctrl+0)">Fit</button>
+        <button class="zoom-text" onclick={() => canvas?.resetVirtualZoom()} title="Actual size (Ctrl+1)">100%</button>
       </div>
     </main>
+
+    {#if layersOpen}
+      <LayersPanel {canvas} revision={rev} {selection} onChanged={onPropChanged} onSelected={selectFromLayers} />
+    {/if}
 
     <PropsPanel
       {selection}
       {rev}
       {labelProps}
+      safeAreaBounds={canvas?.getSafeAreaBounds()}
       dpmm={DPMM}
       customFontFamilies={$userFonts.map((font) => font.family)}
       {missingFontFamilies}
@@ -861,6 +1081,7 @@
       onDelete={deleteSelection}
       onGroup={groupSelection}
       onUngroup={ungroupSelection}
+      onReplaceImage={replaceImage}
       onLabelSize={applyLabelSize}
       onLabelProps={updateLabelProps}
     />
@@ -870,6 +1091,8 @@
     <button class="snap-toggle" class:on={gridSnap} onclick={toggleGridSnap}>
       GRID 5 PX · SNAP {gridSnap ? "ON" : "OFF"}
     </button>
+    <button class="snap-toggle" class:on={safeAreaVisible} onclick={toggleSafeArea}>SAFE AREA {safeAreaVisible ? "ON" : "OFF"}</button>
+    <button class="snap-toggle" class:on={smartSnap} onclick={toggleSmartSnap}>SMART SNAP {smartSnap ? "ON" : "OFF"}</button>
     <span class="autosave" class:error={autosaveState === "error"}>
       {autosaveState === "saving"
         ? "RECOVERY SAVING"
@@ -899,6 +1122,12 @@
     padding: 0 16px;
     background: var(--paper);
     border-bottom: 1.5px solid var(--ink);
+  }
+
+  .shortcuts-btn {
+    width: 30px;
+    padding-inline: 0;
+    font-family: var(--font-mono);
   }
 
   .logo {
@@ -1075,16 +1304,30 @@
     flex: 1;
     min-width: 0;
     position: relative;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    overflow: auto;
     background-color: var(--paper-2);
     background-image: radial-gradient(circle, #cbc4b2 1px, transparent 1.2px);
     background-size: 18px 18px;
   }
 
+  .canvas-stage {
+    width: max-content;
+    height: max-content;
+    min-width: 100%;
+    min-height: 100%;
+    box-sizing: border-box;
+    padding: 48px;
+    display: grid;
+    place-items: center;
+  }
+
   .canvas-holder {
     box-shadow: var(--shadow-lg);
+  }
+
+  .canvas-area.panning,
+  .canvas-area.panning :global(canvas) {
+    cursor: grabbing !important;
   }
 
   .zoom-cluster {
@@ -1112,7 +1355,12 @@
 
   .zoom-cluster button:last-child {
     border-right: 0;
-    border-left: 1px solid var(--line);
+  }
+
+  .zoom-cluster button.zoom-text {
+    width: 43px;
+    font-family: var(--font-mono);
+    font-size: 10px;
   }
 
   .zoom-cluster button:hover {

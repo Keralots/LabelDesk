@@ -5,6 +5,10 @@ import { TextboxExt } from "$/fabric-object/textbox-ext";
 export const configureFabric = () => {
   fabric.config.disableStyleCopyPaste = true;
 
+  // Persist editor metadata used by the layers panel without changing how
+  // ordinary Fabric documents are represented.
+  fabric.FabricObject.customProperties = ["name", "labelDeskLocked"];
+
   fabric.classRegistry.setClass(TextboxExt, "Textbox");
 
   fabric.Line.prototype.setControlsVisibility({

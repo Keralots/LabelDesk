@@ -10,4 +10,18 @@ describe("binary compression", () => {
     expect(restored).toEqual(source);
     expect(compressed.byteLength).toBeLessThan(source.byteLength);
   });
+
+  it("streams buffers larger than the compression backpressure threshold", async () => {
+    let state = 0x12345678;
+    const source = new Uint8Array(128 * 1024);
+    for (let index = 0; index < source.length; index++) {
+      state = (Math.imul(state, 1664525) + 1013904223) >>> 0;
+      source[index] = state >>> 24;
+    }
+
+    const compressed = await compressBuffer(source);
+    const restored = new Uint8Array(await decompressBuffer(compressed));
+
+    expect(restored).toEqual(source);
+  });
 });

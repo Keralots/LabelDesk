@@ -21,17 +21,11 @@ const asBytes = (buffer: BufferSource): Uint8Array<ArrayBuffer> => {
 };
 
 export const compressBuffer = async (buffer: BufferSource): Promise<ArrayBuffer> => {
-  const stream = new CompressionStream("gzip");
-  const writer = stream.writable.getWriter();
-  await writer.write(asBytes(buffer));
-  await writer.close();
-  return new Response(stream.readable).arrayBuffer();
+  const stream = new Blob([asBytes(buffer)]).stream().pipeThrough(new CompressionStream("gzip"));
+  return new Response(stream).arrayBuffer();
 };
 
 export const decompressBuffer = async (buffer: BufferSource): Promise<ArrayBuffer> => {
-  const stream = new DecompressionStream("gzip");
-  const writer = stream.writable.getWriter();
-  await writer.write(asBytes(buffer));
-  await writer.close();
-  return new Response(stream.readable).arrayBuffer();
+  const stream = new Blob([asBytes(buffer)]).stream().pipeThrough(new DecompressionStream("gzip"));
+  return new Response(stream).arrayBuffer();
 };

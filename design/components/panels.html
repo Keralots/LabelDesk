@@ -1,0 +1,98 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LabelDesk · Panels</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --paper:#F5F1E8; --paper-2:#EDE8DB; --raised:#FDFBF4;
+  --ink:#1A1611; --ink-2:#4A443A; --ink-3:#8A8272;
+  --line:#D9D3C5; --line-2:#C7C0AE;
+  --red:#E8442E; --shadow:2px 2px 0 rgba(26,22,17,.16);
+  --font-ui:'Archivo',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);padding:40px;display:flex;gap:36px;flex-wrap:wrap}
+h1{font-family:'Archivo Black';font-size:22px;text-transform:uppercase;margin-bottom:4px;flex-basis:100%}
+.subtitle{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-bottom:14px;flex-basis:100%}
+
+.panel{width:270px;background:var(--raised);border:1.5px solid var(--ink);border-radius:8px;box-shadow:var(--shadow);overflow:hidden;align-self:flex-start}
+.p-head{padding:10px 14px;border-bottom:1.5px solid var(--ink);background:var(--paper);display:flex;justify-content:space-between;align-items:center}
+.p-head b{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.p-head span{font-family:var(--font-mono);font-size:10px;color:var(--ink-3)}
+.sec{border-bottom:1px solid var(--line);padding:12px 14px}
+.sec:last-child{border-bottom:0}
+.sec h3{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink-3);margin-bottom:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field label{display:block;font-family:var(--font-mono);font-size:9.5px;color:var(--ink-3);margin-bottom:3px;text-transform:uppercase}
+.field .v{font-family:var(--font-mono);font-size:12.5px;font-weight:500;padding:6px 8px;background:var(--paper);border:1px solid var(--line-2);border-radius:4px}
+.seg{display:flex;border:1.5px solid var(--ink);border-radius:4px;overflow:hidden}
+.seg button{flex:1;border:0;background:var(--raised);padding:6px 0;font-size:11px;font-weight:600;color:var(--ink-2);cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--paper)}
+
+.layers .item{display:flex;align-items:center;gap:9px;padding:7px 14px;border-bottom:1px solid var(--line);font-size:12.5px;cursor:pointer}
+.layers .item:hover{background:var(--paper-2)}
+.layers .item.sel{background:var(--paper-2);box-shadow:inset 3px 0 0 var(--red)}
+.layers .item:last-child{border-bottom:0}
+.layers .type{font-family:var(--font-mono);font-size:9px;border:1px solid var(--line-2);border-radius:3px;padding:1px 4px;color:var(--ink-3);text-transform:uppercase}
+.layers .eye{margin-left:auto;color:var(--ink-3);font-size:11px}
+svg{display:block;flex:none}
+</style>
+</head>
+<body>
+<h1>Panels</h1>
+<div class="subtitle">right-side property panel + layers list · sections collapse</div>
+
+<div class="panel">
+  <div class="p-head"><b>Text object</b><span>SELECTED</span></div>
+  <div class="sec">
+    <h3>Position & size</h3>
+    <div class="grid2">
+      <div class="field"><label>X · mm</label><div class="v">4.5</div></div>
+      <div class="field"><label>Y · mm</label><div class="v">2.0</div></div>
+      <div class="field"><label>W · mm</label><div class="v">31.0</div></div>
+      <div class="field"><label>H · mm</label><div class="v">8.0</div></div>
+    </div>
+  </div>
+  <div class="sec">
+    <h3>Text</h3>
+    <div class="field" style="margin-bottom:8px"><label>Font</label><div class="v" style="font-family:var(--font-ui)">Noto Sans · 700</div></div>
+    <div class="grid2" style="margin-bottom:8px">
+      <div class="field"><label>Size · pt</label><div class="v">14</div></div>
+      <div class="field"><label>Spacing</label><div class="v">0</div></div>
+    </div>
+    <div class="seg"><button class="on">Left</button><button>Center</button><button>Right</button></div>
+  </div>
+  <div class="sec">
+    <h3>Style</h3>
+    <div class="seg"><button class="on">Solid</button><button>Outline</button><button>Invert</button></div>
+  </div>
+</div>
+
+<div class="panel">
+  <div class="p-head"><b>Layers</b><span>4 OBJECTS</span></div>
+  <div class="layers">
+    <div class="item sel">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14M12 5v14"/></svg>
+      USB-C cable 1m <span class="type">txt</span><span class="eye">●</span>
+    </div>
+    <div class="item">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5v14M8 5v14M11 5v14M15 5v14M20 5v14"/></svg>
+      1234567890 <span class="type">bar</span><span class="eye">●</span>
+    </div>
+    <div class="item">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 19h14M12 5v14"/></svg>
+      BOX A3 · 2026-07 <span class="type">txt</span><span class="eye">●</span>
+    </div>
+    <div class="item" style="opacity:.5">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="2"/></svg>
+      Border frame <span class="type">shp</span><span class="eye">○</span>
+    </div>
+  </div>
+</div>
+</body>
+</html>

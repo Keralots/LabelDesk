@@ -1,0 +1,89 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LabelDesk · Inputs</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --paper:#F5F1E8; --paper-2:#EDE8DB; --raised:#FDFBF4;
+  --ink:#1A1611; --ink-2:#4A443A; --ink-3:#8A8272;
+  --line:#D9D3C5; --line-2:#C7C0AE;
+  --red:#E8442E; --blue:#2456A6;
+  --font-ui:'Archivo',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);padding:40px}
+h1{font-family:'Archivo Black';font-size:22px;text-transform:uppercase;margin-bottom:4px}
+.sub{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-bottom:28px}
+h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-2);margin:26px 0 14px;border-bottom:1.5px solid var(--ink);padding-bottom:6px}
+.row{display:flex;gap:22px;align-items:flex-end;flex-wrap:wrap}
+label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-2);margin-bottom:5px}
+.input{font-family:var(--font-ui);font-size:13px;padding:8px 10px;background:var(--raised);
+  border:1.5px solid var(--line-2);border-radius:4px;color:var(--ink);width:200px;outline:none;transition:border-color .1s}
+.input:focus{border-color:var(--ink);box-shadow:2px 2px 0 rgba(26,22,17,.14)}
+.input::placeholder{color:var(--ink-3)}
+
+.stepper{display:inline-flex;border:1.5px solid var(--line-2);border-radius:4px;background:var(--raised);overflow:hidden}
+.stepper:focus-within{border-color:var(--ink);box-shadow:2px 2px 0 rgba(26,22,17,.14)}
+.stepper button{width:26px;border:0;background:transparent;color:var(--ink-2);cursor:pointer;font-size:14px;font-family:var(--font-mono)}
+.stepper button:hover{background:var(--paper-2);color:var(--ink)}
+.stepper input{width:58px;border:0;outline:0;background:transparent;text-align:center;font-family:var(--font-mono);font-size:13px;font-weight:500;color:var(--ink);padding:8px 0}
+.stepper .unit{align-self:center;padding-right:8px;font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
+
+select.input{width:200px;appearance:none;background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);background-position:calc(100% - 16px) 55%,calc(100% - 11px) 55%;background-size:5px 5px;background-repeat:no-repeat}
+
+.seg{display:inline-flex;border:1.5px solid var(--ink);border-radius:4px;overflow:hidden;background:var(--raised)}
+.seg button{border:0;background:transparent;padding:7px 14px;font-family:var(--font-ui);font-size:12.5px;font-weight:600;color:var(--ink-2);cursor:pointer;border-right:1.5px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--paper)}
+
+.switch{position:relative;width:40px;height:22px;display:inline-block}
+.switch input{opacity:0;width:0;height:0}
+.track{position:absolute;inset:0;background:var(--paper-2);border:1.5px solid var(--line-2);border-radius:22px;transition:.15s;cursor:pointer}
+.track:before{content:"";position:absolute;left:2px;top:2px;width:15px;height:15px;border-radius:50%;background:var(--raised);border:1.5px solid var(--ink);transition:.15s}
+.switch input:checked + .track{background:var(--ink);border-color:var(--ink)}
+.switch input:checked + .track:before{transform:translateX(17px);background:var(--paper)}
+
+.range-wrap{width:260px}
+.range-head{display:flex;justify-content:space-between;margin-bottom:6px}
+.range-head span{font-family:var(--font-mono);font-size:12px;font-weight:500}
+input[type=range]{-webkit-appearance:none;width:100%;height:3px;background:var(--line-2);border-radius:2px;outline:none}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:16px;height:16px;border-radius:50%;background:var(--raised);border:2px solid var(--ink);cursor:pointer;box-shadow:2px 2px 0 rgba(26,22,17,.16)}
+</style>
+</head>
+<body>
+<h1>Inputs</h1>
+<div class="sub">values are mono · dimensions always carry a unit</div>
+
+<h2>Text & select</h2>
+<div class="row">
+  <div><label>Label name</label><input class="input" placeholder="e.g. Pantry jar 40×12" value="USB-C cable 1m"></div>
+  <div><label>Font family</label><select class="input"><option>Noto Sans</option><option>Archivo</option><option>Plex Mono</option></select></div>
+</div>
+
+<h2>Dimension steppers</h2>
+<div class="row">
+  <div><label>Width</label><div class="stepper"><button>−</button><input value="40.0"><span class="unit">mm</span><button>+</button></div></div>
+  <div><label>Height</label><div class="stepper"><button>−</button><input value="12.0"><span class="unit">mm</span><button>+</button></div></div>
+  <div><label>Rotation</label><div class="stepper"><button>−</button><input value="0"><span class="unit">°</span><button>+</button></div></div>
+  <div><label>Copies</label><div class="stepper"><button>−</button><input value="3"><span class="unit">×</span><button>+</button></div></div>
+</div>
+
+<h2>Segmented & toggles</h2>
+<div class="row">
+  <div><label>Align</label><div class="seg"><button class="on">Left</button><button>Center</button><button>Right</button></div></div>
+  <div><label>Density</label><div class="seg"><button>1</button><button>2</button><button class="on">3</button><button>4</button><button>5</button></div></div>
+  <div><label>Invert</label><label class="switch"><input type="checkbox"><span class="track"></span></label></div>
+  <div><label>Mirror</label><label class="switch"><input type="checkbox" checked><span class="track"></span></label></div>
+</div>
+
+<h2>Threshold slider - dithering control</h2>
+<div class="range-wrap">
+  <div class="range-head"><span>Threshold</span><span>128</span></div>
+  <input type="range" min="0" max="255" value="128">
+</div>
+</body>
+</html>

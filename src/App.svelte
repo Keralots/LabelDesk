@@ -1,8 +1,19 @@
 <script lang="ts">
   import { onMount } from "svelte";
+  import * as fabric from "fabric";
   import { CustomCanvas } from "$/fabric-object/custom_canvas";
   import { TextboxExt } from "$/fabric-object/textbox-ext";
-  import { DEFAULT_LABEL_PROPS, OBJECT_DEFAULTS_TEXT } from "$/defaults";
+  import Barcode from "$/fabric-object/barcode";
+  import QRCode from "$/fabric-object/qrcode";
+  import ToolRail, { type ToolKind } from "$/components/ToolRail.svelte";
+  import PropsPanel from "$/components/PropsPanel.svelte";
+  import { FileUtils } from "$/utils/file_utils";
+  import {
+    DEFAULT_LABEL_PROPS,
+    OBJECT_DEFAULTS,
+    OBJECT_DEFAULTS_TEXT,
+    OBJECT_DEFAULTS_VECTOR,
+  } from "$/defaults";
   import {
     connect,
     disconnect,
@@ -19,6 +30,81 @@
   let canvasEl: HTMLCanvasElement;
   let canvas: CustomCanvas | undefined;
   let zoomPercent = $state(100);
+  let selection = $state<fabric.FabricObject | null>(null);
+  let rev = $state(0);
+
+  const DPMM = 8; // 203 dpi
+
+  const refreshCanvas = () => {
+    canvas?.renderAll();
+    rev++;
+  };
+
+  const addObject = async (kind: ToolKind) => {
+    if (!canvas) return;
+    let obj: fabric.FabricObject | undefined;
+
+    if (kind === "text") {
+      obj = new TextboxExt("Text", { ...OBJECT_DEFAULTS_TEXT, fontSize: 24 });
+    } else if (kind === "barcode") {
+      obj = new Barcode({ ...OBJECT_DEFAULTS, text: "123456789", encoding: "CODE128B", scaleFactor: 2 });
+    } else if (kind === "qrcode") {
+      obj = new QRCode({ ...OBJECT_DEFAULTS, text: "https://example.com", size: 60 });
+    } else if (kind === "rect") {
+      obj = new fabric.Rect({ ...OBJECT_DEFAULTS_VECTOR, width: 60, height: 40 });
+    } else if (kind === "circle") {
+      obj = new fabric.Circle({ ...OBJECT_DEFAULTS_VECTOR, radius: 24 });
+    } else if (kind === "line") {
+      obj = new fabric.Polyline(
+        [
+          { x: 0, y: 0 },
+          { x: 80, y: 0 },
+        ],
+        { ...OBJECT_DEFAULTS_VECTOR },
+      );
+    } else if (kind === "image") {
+      try {
+        const fileList = await FileUtils.pickFileAsync("*", false);
+        const dataUrl = await FileUtils.blobToDataUrl(fileList[0]);
+        const img = await fabric.FabricImage.fromURL(dataUrl);
+        // fit into the label, leaving a small margin
+        const maxW = DEFAULT_LABEL_PROPS.size.width * 0.8;
+        const maxH = DEFAULT_LABEL_PROPS.size.height * 0.8;
+        const scale = Math.min(maxW / (img.width ?? 1), maxH / (img.height ?? 1), 1);
+        img.scale(scale);
+        obj = img;
+      } catch (e) {
+        console.error("Image load failed:", e);
+        return;
+      }
+    }
+
+    if (!obj) return;
+    canvas.add(obj);
+    canvas.centerObject(obj);
+    canvas.setActiveObject(obj);
+    refreshCanvas();
+  };
+
+  const deleteSelection = () => {
+    if (!canvas) return;
+    const active = canvas.getActiveObjects();
+    canvas.discardActiveObject();
+    active.forEach((o) => canvas?.remove(o));
+    refreshCanvas();
+  };
+
+  const onKeydown = (e: KeyboardEvent) => {
+    if (e.key !== "Delete" && e.key !== "Backspace") return;
+    const target = e.target as HTMLElement;
+    if (target.tagName === "INPUT" || target.tagName === "TEXTAREA") return;
+    const active = canvas?.getActiveObject();
+    if (active instanceof fabric.IText && active.isEditing) return;
+    if (active) {
+      e.preventDefault();
+      deleteSelection();
+    }
+  };
 
   const onConnectClick = async () => {
     if ($connectionState === "connected") {
@@ -51,6 +137,11 @@
       zoomPercent = Math.round(zoom * 100);
     };
 
+    canvas.on("selection:created", (e) => (selection = e.selected?.[0] ?? null));
+    canvas.on("selection:updated", (e) => (selection = e.selected?.[0] ?? null));
+    canvas.on("selection:cleared", () => (selection = null));
+    canvas.on("object:modified", () => rev++);
+
     // OBJECT_DEFAULTS_TEXT uses center origin - left/top are the CENTER point
     const text = new TextboxExt("LabelDesk", {
       ...OBJECT_DEFAULTS_TEXT,
@@ -72,6 +163,8 @@
   const zoomIn = () => canvas?.virtualZoomIn();
   const zoomOut = () => canvas?.virtualZoomOut();
 </script>
+
+<svelte:window onkeydown={onKeydown} />
 
 <div class="app">
   <header class="topbar">
@@ -110,16 +203,29 @@
     <div class="print-error">{$printError}</div>
   {/if}
 
-  <main class="canvas-area">
-    <div class="canvas-holder">
-      <canvas bind:this={canvasEl}></canvas>
-    </div>
-    <div class="zoom-cluster">
-      <button onclick={zoomOut}>−</button>
-      <span class="z">{zoomPercent}%</span>
-      <button onclick={zoomIn}>+</button>
-    </div>
-  </main>
+  <div class="main">
+    <ToolRail onAdd={addObject} />
+
+    <main class="canvas-area">
+      <div class="canvas-holder">
+        <canvas bind:this={canvasEl}></canvas>
+      </div>
+      <div class="zoom-cluster">
+        <button onclick={zoomOut}>−</button>
+        <span class="z">{zoomPercent}%</span>
+        <button onclick={zoomIn}>+</button>
+      </div>
+    </main>
+
+    <PropsPanel
+      {selection}
+      {rev}
+      labelProps={DEFAULT_LABEL_PROPS}
+      dpmm={DPMM}
+      onChanged={refreshCanvas}
+      onDelete={deleteSelection}
+    />
+  </div>
 
   <footer class="status">
     <span>GRID 5 PX · SNAP ON</span>
@@ -252,9 +358,15 @@
     pointer-events: none;
   }
 
+  .main {
+    flex: 1;
+    display: flex;
+    min-height: 0;
+  }
+
   .canvas-area {
     flex: 1;
-    min-height: 0;
+    min-width: 0;
     position: relative;
     display: flex;
     align-items: center;

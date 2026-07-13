@@ -1,0 +1,204 @@
+<!-- @dsCard group="Layouts" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LabelDesk · Editor layout</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --paper:#F5F1E8; --paper-2:#EDE8DB; --raised:#FDFBF4;
+  --ink:#1A1611; --ink-2:#4A443A; --ink-3:#8A8272;
+  --line:#D9D3C5; --line-2:#C7C0AE;
+  --red:#E8442E; --red-2:#C22F1C; --green:#2E7D4F;
+  --shadow:2px 2px 0 rgba(26,22,17,.16);
+  --shadow-lg:4px 4px 0 rgba(26,22,17,.18);
+  --font-ui:'Archivo',system-ui,sans-serif;
+  --font-display:'Archivo Black','Archivo',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);display:flex;flex-direction:column;overflow:hidden}
+
+/* ── top bar ─────────────────────────────── */
+.topbar{height:52px;flex:none;display:flex;align-items:center;gap:16px;padding:0 16px;background:var(--paper);border-bottom:1.5px solid var(--ink)}
+.logo{font-family:var(--font-display);font-size:17px;letter-spacing:.5px;text-transform:uppercase;display:flex;align-items:center;gap:2px}
+.logo i{width:7px;height:7px;border-radius:50%;background:var(--red);display:inline-block;margin-left:2px}
+.menu{display:flex;gap:2px;margin-left:8px}
+.menu button{border:0;background:transparent;font-family:var(--font-ui);font-size:12.5px;font-weight:500;color:var(--ink-2);padding:6px 10px;border-radius:4px;cursor:pointer}
+.menu button:hover{background:var(--paper-2);color:var(--ink)}
+.doc-chip{margin-left:auto;display:flex;align-items:center;gap:10px;font-family:var(--font-mono);font-size:11.5px;color:var(--ink-2);border:1px solid var(--line-2);border-radius:4px;padding:6px 12px;background:var(--raised)}
+.doc-chip b{font-weight:600;color:var(--ink)}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border:1.5px solid var(--green);border-radius:20px;background:var(--raised);font-size:12px;font-weight:600;cursor:pointer}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--green);box-shadow:0 0 0 3px rgba(46,125,79,.18)}
+.chip .batt{font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3);border-left:1px solid var(--line);padding-left:8px}
+.btn-print{font-family:var(--font-ui);font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;padding:9px 20px;border-radius:4px;cursor:pointer;border:1.5px solid var(--red-2);background:var(--red);color:#FFF8F0;box-shadow:var(--shadow);display:flex;align-items:center;gap:8px}
+
+/* ── main ────────────────────────────────── */
+.main{flex:1;display:flex;min-height:0}
+
+/* left rail */
+.rail{width:52px;flex:none;background:var(--paper);border-right:1.5px solid var(--ink);display:flex;flex-direction:column;align-items:center;padding:10px 0;gap:6px}
+.tool{width:36px;height:36px;border:1.5px solid transparent;border-radius:5px;background:transparent;color:var(--ink-2);display:flex;align-items:center;justify-content:center;cursor:pointer}
+.tool:hover{background:var(--paper-2);border-color:var(--line-2)}
+.tool.active{background:var(--ink);color:var(--paper);border-color:var(--ink);box-shadow:var(--shadow)}
+.rail hr{width:24px;border:0;border-top:1px solid var(--line-2);margin:4px 0}
+
+/* canvas area */
+.canvas-wrap{flex:1;position:relative;overflow:hidden;
+  background-color:var(--paper-2);
+  background-image:radial-gradient(circle,#CBC4B2 1px,transparent 1.2px);
+  background-size:18px 18px}
+.ruler-x{position:absolute;top:0;left:24px;right:0;height:24px;background:var(--paper);border-bottom:1px solid var(--line-2);
+  background-image:repeating-linear-gradient(to right,transparent 0 1px,transparent 1px 8px,var(--line-2) 8px 9px);opacity:.9}
+.ruler-y{position:absolute;top:24px;left:0;bottom:0;width:24px;background:var(--paper);border-right:1px solid var(--line-2);
+  background-image:repeating-linear-gradient(to bottom,transparent 0 1px,transparent 1px 8px,var(--line-2) 8px 9px);opacity:.9}
+.ruler-corner{position:absolute;top:0;left:0;width:24px;height:24px;background:var(--paper);border-right:1px solid var(--line-2);border-bottom:1px solid var(--line-2);
+  display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:8px;color:var(--ink-3)}
+
+/* label */
+.label{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:560px;height:168px;background:#fff;
+  border-radius:12px;box-shadow:var(--shadow-lg),0 0 0 1px var(--line-2);display:flex;align-items:center;padding:0 30px;gap:26px}
+.label:before{content:"40.0 mm";position:absolute;top:-26px;left:50%;transform:translateX(-50%);font-family:var(--font-mono);font-size:10px;color:var(--ink-3)}
+.label:after{content:"12.0 mm";position:absolute;left:-46px;top:50%;transform:translateY(-50%) rotate(-90deg);font-family:var(--font-mono);font-size:10px;color:var(--ink-3)}
+.label .txt b{display:block;font-size:30px;font-weight:700;color:#000;letter-spacing:-.3px}
+.label .txt span{font-family:var(--font-mono);font-size:13px;color:#000}
+.bars{display:flex;gap:3px;height:78px;margin-left:auto}
+.bars i{background:#000;width:3px}
+.bars i:nth-child(2n){width:2px}
+.bars i:nth-child(5n){width:5px}
+
+/* selection on text */
+.sel{position:absolute;left:16px;top:34px;width:290px;height:96px;border:1.5px dashed var(--red);border-radius:2px}
+.sel .h{position:absolute;width:9px;height:9px;background:var(--raised);border:1.5px solid var(--red);border-radius:1px}
+.sel .h.tl{left:-5px;top:-5px}.sel .h.tr{right:-5px;top:-5px}.sel .h.bl{left:-5px;bottom:-5px}.sel .h.br{right:-5px;bottom:-5px}
+.sel .tag{position:absolute;top:-22px;left:-2px;font-family:var(--font-mono);font-size:9.5px;background:var(--red);color:#FFF8F0;padding:2px 7px;border-radius:2px;letter-spacing:.5px}
+
+/* zoom + undo cluster */
+.float{position:absolute;display:flex;gap:0;background:var(--raised);border:1.5px solid var(--ink);border-radius:5px;box-shadow:var(--shadow);overflow:hidden}
+.float button{border:0;background:transparent;width:34px;height:32px;cursor:pointer;color:var(--ink-2);display:flex;align-items:center;justify-content:center;border-right:1px solid var(--line)}
+.float button:last-child{border-right:0}
+.float button:hover{background:var(--paper-2);color:var(--ink)}
+.float .z{font-family:var(--font-mono);font-size:11.5px;font-weight:500;color:var(--ink);width:52px;pointer-events:none}
+.zoom{left:40px;bottom:16px}
+.undo{right:16px;bottom:16px}
+
+/* right panel */
+.props{width:272px;flex:none;background:var(--raised);border-left:1.5px solid var(--ink);display:flex;flex-direction:column;overflow-y:auto}
+.p-head{padding:10px 14px;border-bottom:1.5px solid var(--ink);background:var(--paper);display:flex;justify-content:space-between;align-items:center;flex:none}
+.p-head b{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.p-head span{font-family:var(--font-mono);font-size:10px;color:var(--ink-3)}
+.sec{border-bottom:1px solid var(--line);padding:12px 14px}
+.sec h3{font-size:10.5px;font-weight:700;text-transform:uppercase;letter-spacing:1px;color:var(--ink-3);margin-bottom:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field label{display:block;font-family:var(--font-mono);font-size:9.5px;color:var(--ink-3);margin-bottom:3px;text-transform:uppercase}
+.field .v{font-family:var(--font-mono);font-size:12.5px;font-weight:500;padding:6px 8px;background:var(--paper);border:1px solid var(--line-2);border-radius:4px}
+.seg{display:flex;border:1.5px solid var(--ink);border-radius:4px;overflow:hidden}
+.seg button{flex:1;border:0;background:var(--raised);padding:6px 0;font-size:11px;font-weight:600;color:var(--ink-2);cursor:pointer;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:0}
+.seg button.on{background:var(--ink);color:var(--paper)}
+.layers .item{display:flex;align-items:center;gap:9px;padding:7px 14px;border-bottom:1px solid var(--line);font-size:12px;cursor:pointer}
+.layers .item.sel2{background:var(--paper-2);box-shadow:inset 3px 0 0 var(--red)}
+.layers .type{font-family:var(--font-mono);font-size:9px;border:1px solid var(--line-2);border-radius:3px;padding:1px 4px;color:var(--ink-3);text-transform:uppercase}
+
+/* status bar */
+.status{height:26px;flex:none;display:flex;align-items:center;gap:18px;padding:0 14px;background:var(--paper);border-top:1px solid var(--line-2);font-family:var(--font-mono);font-size:10.5px;color:var(--ink-3)}
+.status .right{margin-left:auto}
+svg{display:block;flex:none}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">LabelDesk<i></i></div>
+  <div class="menu"><button>File</button><button>Edit</button><button>Insert</button><button>Library</button></div>
+  <div class="doc-chip"><b>USB-C cable 1m</b> · 40.0 × 12.0 mm · 203 dpi · saved</div>
+  <span class="chip"><span class="dot"></span>D110<span class="batt">▮▮▮▯ 75%</span></span>
+  <button class="btn-print">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/></svg>
+    Print
+  </button>
+</div>
+
+<div class="main">
+  <div class="rail">
+    <button class="tool active" title="Select"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 3l7 17 2.5-7L21 10.5z"/></svg></button>
+    <button class="tool" title="Text"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14M12 5v14"/></svg></button>
+    <button class="tool" title="Barcode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5v14M8 5v14M11 5v14M15 5v14M20 5v14M17.5 5v14"/></svg></button>
+    <button class="tool" title="QR code"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h3v3h-3zM19 19h1"/></svg></button>
+    <button class="tool" title="Shape"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="2"/></svg></button>
+    <button class="tool" title="Image"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg></button>
+    <button class="tool" title="Icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3l2.6 5.6 6.4.8-4.7 4.2 1.2 6.1-5.5-3-5.5 3 1.2-6.1L3 9.4l6.4-.8z"/></svg></button>
+    <hr>
+    <button class="tool" title="Variables"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 4c-2 0-2 2-2 4s0 4-2 4c2 0 2 2 2 4s0 4 2 4M17 4c2 0 2 2 2 4s0 4 2 4c-2 0-2 2-2 4s0 4-2 4"/></svg></button>
+  </div>
+
+  <div class="canvas-wrap">
+    <div class="ruler-corner">mm</div>
+    <div class="ruler-x"></div>
+    <div class="ruler-y"></div>
+
+    <div class="label">
+      <div class="sel">
+        <span class="tag">TEXT · 31.0 × 8.0</span>
+        <span class="h tl"></span><span class="h tr"></span><span class="h bl"></span><span class="h br"></span>
+      </div>
+      <div class="txt"><b>USB-C cable 1m</b><span>BOX A3 · 2026-07</span></div>
+      <div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+    </div>
+
+    <div class="float zoom">
+      <button>−</button>
+      <button class="z">100%</button>
+      <button>+</button>
+      <button title="Fit"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg></button>
+    </div>
+    <div class="float undo">
+      <button title="Undo"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3"/></svg></button>
+      <button title="Redo" style="opacity:.4"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3"/></svg></button>
+    </div>
+  </div>
+
+  <div class="props">
+    <div class="p-head"><b>Text object</b><span>SELECTED</span></div>
+    <div class="sec">
+      <h3>Position & size</h3>
+      <div class="grid2">
+        <div class="field"><label>X · mm</label><div class="v">4.5</div></div>
+        <div class="field"><label>Y · mm</label><div class="v">2.0</div></div>
+        <div class="field"><label>W · mm</label><div class="v">31.0</div></div>
+        <div class="field"><label>H · mm</label><div class="v">8.0</div></div>
+      </div>
+    </div>
+    <div class="sec">
+      <h3>Text</h3>
+      <div class="field" style="margin-bottom:8px"><label>Font</label><div class="v" style="font-family:var(--font-ui)">Noto Sans · 700</div></div>
+      <div class="grid2" style="margin-bottom:8px">
+        <div class="field"><label>Size · pt</label><div class="v">14</div></div>
+        <div class="field"><label>Spacing</label><div class="v">0</div></div>
+      </div>
+      <div class="seg"><button class="on">Left</button><button>Center</button><button>Right</button></div>
+    </div>
+    <div class="sec">
+      <h3>Style</h3>
+      <div class="seg"><button class="on">Solid</button><button>Outline</button><button>Invert</button></div>
+    </div>
+    <div class="sec layers" style="padding:0">
+      <h3 style="padding:12px 14px 6px">Layers · 4</h3>
+      <div class="item sel2"><span class="type">txt</span>USB-C cable 1m</div>
+      <div class="item"><span class="type">bar</span>1234567890</div>
+      <div class="item"><span class="type">txt</span>BOX A3 · 2026-07</div>
+      <div class="item" style="opacity:.5;border-bottom:0"><span class="type">shp</span>Border frame</div>
+    </div>
+  </div>
+</div>
+
+<div class="status">
+  <span>X 21.4 · Y 6.8 mm</span>
+  <span>GRID 1.0 mm · SNAP ON</span>
+  <span class="right">D110 CONNECTED · 203 DPI · READY</span>
+</div>
+
+</body>
+</html>

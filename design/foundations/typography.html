@@ -1,0 +1,52 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LabelDesk · Typography</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --paper:#F5F1E8; --raised:#FDFBF4; --ink:#1A1611; --ink-2:#4A443A; --ink-3:#8A8272;
+  --line:#D9D3C5; --red:#E8442E;
+  --font-ui:'Archivo',system-ui,sans-serif;
+  --font-display:'Archivo Black','Archivo',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);padding:40px}
+h1{font-family:var(--font-display);font-size:22px;text-transform:uppercase;letter-spacing:.5px;margin-bottom:4px}
+.sub{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-bottom:30px}
+.spec{display:grid;grid-template-columns:210px 1fr;gap:10px 28px;align-items:baseline;max-width:860px}
+.spec code{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);text-align:right;display:block}
+.d1{font-family:var(--font-display);font-size:34px;text-transform:uppercase;letter-spacing:.5px}
+.h1x{font-size:19px;font-weight:700}
+.h2x{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-2)}
+.body1{font-size:13.5px;line-height:1.55}
+.small{font-size:12px;color:var(--ink-2)}
+.mono1{font-family:var(--font-mono);font-size:13px;font-weight:500}
+.mono2{font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
+hr{border:0;border-top:1.5px solid var(--ink);margin:26px 0}
+.roles{margin-top:6px;padding:14px 16px;border:1.5px dashed var(--line);border-radius:6px;font-size:12.5px;color:var(--ink-2);max-width:640px}
+.roles b{color:var(--ink)}
+.red{color:var(--red)}
+</style>
+</head>
+<body>
+<h1>Typography</h1>
+<div class="sub">Archivo Black · Archivo · IBM Plex Mono</div>
+
+<div class="spec">
+  <code>display / Archivo Black 34</code><div class="d1">LabelDesk<span class="red">.</span></div>
+  <code>heading / Archivo 700 19</code><div class="h1x">Print queue &amp; label presets</div>
+  <code>section / Archivo 700 14 caps</code><div class="h2x">Object properties</div>
+  <code>body / Archivo 400 13.5</code><div class="body1">Design a label, connect the printer over Bluetooth, hit print. Text stays crisp at 203 dpi thermal resolution.</div>
+  <code>small / Archivo 400 12</code><div class="small">Last saved 2 minutes ago · 14 labels in library</div>
+  <code>value / Plex Mono 500 13</code><div class="mono1">40.0 × 12.0 mm &nbsp; X 4.5 &nbsp; Y 2.0 &nbsp; 100%</div>
+  <code>caption / Plex Mono 400 11</code><div class="mono2">D110 · 203 DPI · GAP LABEL</div>
+</div>
+
+<hr>
+<div class="roles"><b>Roles:</b> Archivo Black only for the wordmark and empty-state headlines. Archivo carries all UI. <b>Every number the user can measure</b> (mm, dpi, zoom, coordinates, battery) is Plex Mono - values line up in columns and read like a spec sheet, never like prose.</div>
+</body>
+</html>

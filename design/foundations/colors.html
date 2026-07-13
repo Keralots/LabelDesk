@@ -1,0 +1,66 @@
+<!-- @dsCard group="Foundations" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LabelDesk · Colors</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --paper:#F5F1E8; --paper-2:#EDE8DB; --raised:#FDFBF4;
+  --ink:#1A1611; --ink-2:#4A443A; --ink-3:#8A8272;
+  --line:#D9D3C5; --line-2:#C7C0AE;
+  --red:#E8442E; --red-2:#C22F1C;
+  --green:#2E7D4F; --blue:#2456A6; --amber:#C77D0A;
+  --shadow:2px 2px 0 rgba(26,22,17,.16);
+  --shadow-lg:4px 4px 0 rgba(26,22,17,.16);
+  --font-ui:'Archivo',system-ui,sans-serif;
+  --font-display:'Archivo Black','Archivo',sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);padding:40px}
+h1{font-family:var(--font-display);font-size:22px;letter-spacing:.5px;text-transform:uppercase;margin-bottom:4px}
+.sub{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-bottom:28px}
+h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-2);margin:26px 0 12px;border-bottom:1.5px solid var(--ink);padding-bottom:6px}
+.row{display:flex;gap:14px;flex-wrap:wrap}
+.swatch{width:150px;border:1.5px solid var(--ink);border-radius:6px;overflow:hidden;background:var(--raised);box-shadow:var(--shadow)}
+.chip{height:64px;border-bottom:1.5px solid var(--ink)}
+.meta{padding:8px 10px}
+.meta b{display:block;font-size:12.5px;font-weight:600}
+.meta code{font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
+.note{margin-top:26px;padding:12px 14px;border:1.5px dashed var(--line-2);border-radius:6px;font-size:12.5px;color:var(--ink-2);max-width:640px}
+.note b{color:var(--ink)}
+</style>
+</head>
+<body>
+<h1>Colors</h1>
+<div class="sub">LabelDesk · print-shop palette · warm paper + ink + thermal red</div>
+
+<h2>Surfaces</h2>
+<div class="row">
+  <div class="swatch"><div class="chip" style="background:#F5F1E8"></div><div class="meta"><b>Paper</b><code>--paper #F5F1E8</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#EDE8DB"></div><div class="meta"><b>Paper dim</b><code>--paper-2 #EDE8DB</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#FDFBF4"></div><div class="meta"><b>Raised</b><code>--raised #FDFBF4</code></div></div>
+</div>
+
+<h2>Ink</h2>
+<div class="row">
+  <div class="swatch"><div class="chip" style="background:#1A1611"></div><div class="meta"><b>Ink</b><code>--ink #1A1611</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#4A443A"></div><div class="meta"><b>Ink soft</b><code>--ink-2 #4A443A</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#8A8272"></div><div class="meta"><b>Ink faint</b><code>--ink-3 #8A8272</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#D9D3C5"></div><div class="meta"><b>Line</b><code>--line #D9D3C5</code></div></div>
+</div>
+
+<h2>Accent & status</h2>
+<div class="row">
+  <div class="swatch"><div class="chip" style="background:#E8442E"></div><div class="meta"><b>Thermal red</b><code>--red #E8442E</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#C22F1C"></div><div class="meta"><b>Thermal red · press</b><code>--red-2 #C22F1C</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#2E7D4F"></div><div class="meta"><b>Connected</b><code>--green #2E7D4F</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#2456A6"></div><div class="meta"><b>Bluetooth</b><code>--blue #2456A6</code></div></div>
+  <div class="swatch"><div class="chip" style="background:#C77D0A"></div><div class="meta"><b>Warning</b><code>--amber #C77D0A</code></div></div>
+</div>
+
+<div class="note"><b>Rules:</b> paper surfaces dominate, ink does the talking, thermal red appears in exactly one place per view (the primary action). Shadows are hard offsets (2px 2px 0), never blurred - everything looks stamped, not floated. Borders 1.5px ink for emphasis, 1px line for quiet edges.</div>
+</body>
+</html>

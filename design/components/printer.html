@@ -1,0 +1,99 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LabelDesk · Printer</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --paper:#F5F1E8; --paper-2:#EDE8DB; --raised:#FDFBF4;
+  --ink:#1A1611; --ink-2:#4A443A; --ink-3:#8A8272;
+  --line:#D9D3C5; --line-2:#C7C0AE;
+  --red:#E8442E; --red-2:#C22F1C; --green:#2E7D4F; --blue:#2456A6; --amber:#C77D0A;
+  --shadow:2px 2px 0 rgba(26,22,17,.16);
+  --shadow-lg:4px 4px 0 rgba(26,22,17,.16);
+  --font-ui:'Archivo',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);padding:40px}
+h1{font-family:'Archivo Black';font-size:22px;text-transform:uppercase;margin-bottom:4px}
+.sub{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-bottom:28px}
+h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-2);margin:26px 0 14px;border-bottom:1.5px solid var(--ink);padding-bottom:6px}
+.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+
+.chip{display:inline-flex;align-items:center;gap:8px;padding:7px 12px;border:1.5px solid var(--line-2);
+  border-radius:20px;background:var(--raised);font-size:12.5px;font-weight:600;cursor:pointer}
+.chip .dot{width:8px;height:8px;border-radius:50%;background:var(--ink-3)}
+.chip.connected{border-color:var(--green)}
+.chip.connected .dot{background:var(--green);box-shadow:0 0 0 3px rgba(46,125,79,.18)}
+.chip.connecting .dot{background:var(--blue);animation:pulse 1s infinite}
+.chip.printing{border-color:var(--red-2)}
+.chip.printing .dot{background:var(--red);animation:pulse .6s infinite}
+.chip .batt{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);border-left:1px solid var(--line);padding-left:8px}
+@keyframes pulse{50%{opacity:.35}}
+
+.dialog{width:430px;background:var(--raised);border:1.5px solid var(--ink);border-radius:8px;box-shadow:var(--shadow-lg);overflow:hidden}
+.dlg-head{display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1.5px solid var(--ink);background:var(--paper)}
+.dlg-head b{font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
+.dlg-head .x{font-family:var(--font-mono);color:var(--ink-3);cursor:pointer}
+.dlg-body{padding:18px}
+.preview-strip{background:var(--paper-2);border:1px solid var(--line);border-radius:6px;padding:16px;display:flex;justify-content:center;margin-bottom:16px;position:relative}
+.preview-strip:after{content:"1-BIT PREVIEW · ATKINSON";position:absolute;right:8px;bottom:6px;font-family:var(--font-mono);font-size:9px;letter-spacing:.5px;color:var(--ink-3)}
+.label-prev{width:240px;height:72px;background:#fff;border:1px solid var(--line-2);border-radius:6px;display:flex;align-items:center;gap:12px;padding:0 14px;box-shadow:var(--shadow)}
+.label-prev .txt b{display:block;font-size:15px;font-weight:700;color:#000}
+.label-prev .txt span{font-family:var(--font-mono);font-size:9px;color:#000}
+.bars{display:flex;gap:2px;height:34px;align-items:stretch;margin-left:auto}
+.bars i{background:#000;width:2px}
+.bars i:nth-child(2n){width:1px}
+.bars i:nth-child(5n){width:3px}
+.opts{display:grid;grid-template-columns:1fr 1fr;gap:12px 16px;margin-bottom:18px}
+.opts label{display:block;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.8px;color:var(--ink-2);margin-bottom:4px}
+.opts .val{font-family:var(--font-mono);font-size:13px;font-weight:500;padding:7px 10px;background:var(--paper);border:1.5px solid var(--line-2);border-radius:4px}
+.dlg-foot{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:14px 18px;border-top:1px solid var(--line);background:var(--paper)}
+.dlg-foot .eta{font-family:var(--font-mono);font-size:11px;color:var(--ink-3)}
+.btn{font-family:var(--font-ui);font-size:13px;font-weight:600;padding:9px 18px;border-radius:4px;cursor:pointer;border:1.5px solid var(--ink);box-shadow:var(--shadow);display:inline-flex;gap:8px;align-items:center}
+.btn.primary{background:var(--red);border-color:var(--red-2);color:#FFF8F0;text-transform:uppercase;letter-spacing:.8px}
+.btn.ghost{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+</style>
+</head>
+<body>
+<h1>Printer</h1>
+<div class="sub">connection chip states + print dialog</div>
+
+<h2>Status chip - top bar, right side</h2>
+<div class="row">
+  <span class="chip"><span class="dot"></span>No printer</span>
+  <span class="chip connecting"><span class="dot"></span>Connecting…</span>
+  <span class="chip connected"><span class="dot"></span>D110 <span class="batt">▮▮▮▯ 75%</span></span>
+  <span class="chip printing"><span class="dot"></span>Printing 2/3…</span>
+</div>
+
+<h2>Print dialog</h2>
+<div class="dialog">
+  <div class="dlg-head"><b>Print</b><span class="x">ESC</span></div>
+  <div class="dlg-body">
+    <div class="preview-strip">
+      <div class="label-prev">
+        <div class="txt"><b>USB-C cable 1m</b><span>BOX A3 · 2026-07</span></div>
+        <div class="bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+      </div>
+    </div>
+    <div class="opts">
+      <div><label>Copies</label><div class="val">3</div></div>
+      <div><label>Density</label><div class="val">3 / 5</div></div>
+      <div><label>Dithering</label><div class="val">Atkinson</div></div>
+      <div><label>Label</label><div class="val">40.0 × 12.0 mm</div></div>
+    </div>
+  </div>
+  <div class="dlg-foot">
+    <span class="eta">D110 · ~4 s per label</span>
+    <div style="display:flex;gap:10px">
+      <button class="btn ghost">Cancel</button>
+      <button class="btn primary">Print 3 labels</button>
+    </div>
+  </div>
+</div>
+</body>
+</html>

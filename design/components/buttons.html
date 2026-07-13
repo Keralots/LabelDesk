@@ -1,0 +1,82 @@
+<!-- @dsCard group="Components" -->
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>LabelDesk · Buttons</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+:root{
+  --paper:#F5F1E8; --paper-2:#EDE8DB; --raised:#FDFBF4;
+  --ink:#1A1611; --ink-2:#4A443A; --ink-3:#8A8272;
+  --line:#D9D3C5; --line-2:#C7C0AE;
+  --red:#E8442E; --red-2:#C22F1C;
+  --shadow:2px 2px 0 rgba(26,22,17,.16);
+  --font-ui:'Archivo',system-ui,sans-serif;
+  --font-mono:'IBM Plex Mono',ui-monospace,monospace;
+}
+*{box-sizing:border-box;margin:0}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-ui);padding:40px}
+h1{font-family:'Archivo Black';font-size:22px;text-transform:uppercase;margin-bottom:4px}
+.sub{font-family:var(--font-mono);font-size:12px;color:var(--ink-3);margin-bottom:28px}
+h2{font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1.2px;color:var(--ink-2);margin:26px 0 14px;border-bottom:1.5px solid var(--ink);padding-bottom:6px}
+.row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+
+.btn{appearance:none;font-family:var(--font-ui);font-size:13px;font-weight:600;letter-spacing:.2px;
+  padding:9px 18px;border-radius:4px;cursor:pointer;border:1.5px solid var(--ink);
+  box-shadow:var(--shadow);transition:transform .06s ease,box-shadow .06s ease;display:inline-flex;align-items:center;gap:8px}
+.btn:hover{transform:translate(-1px,-1px);box-shadow:3px 3px 0 rgba(26,22,17,.16)}
+.btn:active{transform:translate(2px,2px);box-shadow:0 0 0 rgba(26,22,17,.16)}
+.btn.primary{background:var(--red);border-color:var(--red-2);color:#FFF8F0}
+.btn.primary:hover{background:#EF4F38}
+.btn.secondary{background:var(--raised);color:var(--ink)}
+.btn.ghost{background:transparent;border-color:transparent;box-shadow:none;color:var(--ink-2)}
+.btn.ghost:hover{background:var(--paper-2);transform:none}
+.btn.danger{background:var(--raised);color:var(--red-2);border-color:var(--red-2)}
+.btn:disabled{opacity:.45;pointer-events:none}
+.btn.lg{font-size:14px;padding:12px 26px;text-transform:uppercase;letter-spacing:1px}
+.btn.sm{font-size:12px;padding:5px 12px;box-shadow:none}
+.icon-btn{width:34px;height:34px;padding:0;justify-content:center;background:var(--raised)}
+.icon-btn.active{background:var(--ink);color:var(--paper)}
+svg{display:block}
+.hint{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);margin-left:6px}
+</style>
+</head>
+<body>
+<h1>Buttons</h1>
+<div class="sub">stamped, not floated · press pushes the button INTO the paper</div>
+
+<h2>Primary - one per view, always the print/confirm action</h2>
+<div class="row">
+  <button class="btn primary lg">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M6 9V3h12v6M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2M7 14h10v7H7z"/></svg>
+    Print label
+  </button>
+  <button class="btn primary">Print · 3 copies</button>
+  <button class="btn primary" disabled>Print label</button>
+</div>
+
+<h2>Secondary & ghost</h2>
+<div class="row">
+  <button class="btn secondary">Save label</button>
+  <button class="btn secondary">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 5v14M5 12h14"/></svg>
+    New label
+  </button>
+  <button class="btn secondary sm">Duplicate</button>
+  <button class="btn ghost">Cancel</button>
+  <button class="btn danger">Delete</button>
+</div>
+
+<h2>Tool buttons - left rail, toggle style</h2>
+<div class="row">
+  <button class="btn icon-btn active" title="Select"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 3l7 17 2.5-7L21 10.5z"/></svg></button>
+  <button class="btn icon-btn" title="Text"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 5h14M12 5v14"/></svg></button>
+  <button class="btn icon-btn" title="Barcode"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 5v14M8 5v14M11 5v14M15 5v14M20 5v14M17.5 5v14"/></svg></button>
+  <button class="btn icon-btn" title="QR"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="4" width="6" height="6"/><rect x="14" y="4" width="6" height="6"/><rect x="4" y="14" width="6" height="6"/><path d="M14 14h3v3h-3zM19 19h1"/></svg></button>
+  <button class="btn icon-btn" title="Shape"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="12" rx="2"/></svg></button>
+  <button class="btn icon-btn" title="Image"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="2"/><circle cx="8.5" cy="10" r="1.5"/><path d="M21 15l-5-5-9 9"/></svg></button>
+  <span class="hint">active = inked</span>
+</div>
+</body>
+</html>

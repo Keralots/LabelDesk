@@ -37,11 +37,24 @@ Use **Export PNG** in the Library dialog to save the current label as a one-pixe
 
 ## Multi-object editing
 
-Drag a selection rectangle around multiple objects or Shift-click them to create a multi-selection. The properties panel can align edges and centers, distribute three or more objects with equal gaps, center the complete selection on the label, change its stacking order, and group or ungroup objects.
+Drag a selection rectangle around multiple objects or Shift-click them to create a multi-selection. The properties panel can align object edges and centers, distribute three or more objects with equal gaps, align a single object or complete selection to every label edge or center, change its stacking order, and group or ungroup objects.
 
 When every selected object is text, the same panel can apply a font, size, weight, or text alignment to the complete selection. Mixed values are shown explicitly until a shared value is chosen.
 
 For a single text object, **Fit text to 90%** finds the largest font size that fits within a safe 5% margin on every side of the label and centers the result.
+
+## Keyboard shortcuts
+
+- `Ctrl+C`, `Ctrl+X`, and `Ctrl+V` - copy, cut, and paste selected label objects
+- `Ctrl+D` - duplicate the selection
+- `Ctrl+A` - select every label object
+- `Ctrl+G` and `Ctrl+Shift+G` - group and ungroup
+- `Ctrl+Z`, `Ctrl+Shift+Z`, and `Ctrl+Y` - undo and redo
+- Arrow keys - move by one dot; hold Shift to move by ten dots
+- `Delete` or `Backspace` - delete the selection
+- `Escape` - clear the selection
+
+Canvas shortcuts remain inactive while editing text, typing in a form field, or using a dialog.
 
 ## Custom fonts
 

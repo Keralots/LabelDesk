@@ -312,17 +312,15 @@
     commit();
   };
 
-  const duplicateSelection = async () => {
+  const insertClone = async (source: fabric.FabricObject, offset: number) => {
     if (!canvas) return;
-    const active = canvas.getActiveObject();
-    if (!active) return;
+    const clone = await source.clone();
 
-    if (active instanceof fabric.ActiveSelection) {
-      const clonedSelection = await active.clone() as fabric.ActiveSelection;
-      const clones = clonedSelection.removeAll();
+    if (clone instanceof fabric.ActiveSelection) {
+      const clones = clone.removeAll();
       clones.forEach((clone) => {
         const position = clone.getXY();
-        clone.setXY(new fabric.Point(position.x + 10, position.y + 10));
+        clone.setXY(new fabric.Point(position.x + offset, position.y + offset));
         clone.setCoords();
       });
       canvas.discardActiveObject();
@@ -335,12 +333,83 @@
       return;
     }
 
-    const clone = await active.clone();
-    clone.set({ left: (clone.left ?? 0) + 10, top: (clone.top ?? 0) + 10 });
+    clone.set({ left: (clone.left ?? 0) + offset, top: (clone.top ?? 0) + offset });
+    clone.setCoords();
+    canvas.discardActiveObject();
     canvas.add(clone);
     canvas.setActiveObject(clone);
+    selection = clone;
     refreshCanvas();
     commit();
+  };
+
+  const duplicateSelection = async () => {
+    const active = canvas?.getActiveObject();
+    if (!active) return;
+    await insertClone(active, 10);
+  };
+
+  let clipboardSource: Promise<fabric.FabricObject | null> = Promise.resolve(null);
+  let clipboardAvailable = false;
+  let pasteOffset = 0;
+  let pasteQueue = Promise.resolve();
+
+  const storeClipboard = (active: fabric.FabricObject) => {
+    clipboardAvailable = true;
+    pasteOffset = 0;
+    clipboardSource = active.clone().catch((error) => {
+      clipboardAvailable = false;
+      console.error("Could not copy selection:", error);
+      return null;
+    });
+    return clipboardSource;
+  };
+
+  const copySelection = () => {
+    const active = canvas?.getActiveObject();
+    if (!active) return;
+    void storeClipboard(active);
+  };
+
+  const cutSelection = async () => {
+    if (!canvas) return;
+    const active = canvas.getActiveObject();
+    if (!active) return;
+    const objects = active instanceof fabric.ActiveSelection ? [...active.getObjects()] : [active];
+    const copied = await storeClipboard(active);
+    if (!copied) return;
+
+    canvas.discardActiveObject();
+    canvas.remove(...objects);
+    selection = null;
+    refreshCanvas();
+    commit();
+  };
+
+  const pasteSelection = () => {
+    const source = clipboardSource;
+    pasteQueue = pasteQueue.then(async () => {
+      const stored = await source;
+      if (!stored) return;
+      pasteOffset += 10;
+      await insertClone(stored, pasteOffset);
+    }).catch((error) => {
+      console.error("Could not paste selection:", error);
+    });
+    return pasteQueue;
+  };
+
+  const selectAllObjects = () => {
+    if (!canvas) return;
+    const objects = canvas.getObjects();
+    if (objects.length === 0) return;
+    canvas.discardActiveObject();
+    const nextSelection = objects.length === 1
+      ? objects[0]
+      : new fabric.ActiveSelection(objects, { canvas });
+    canvas.setActiveObject(nextSelection);
+    selection = nextSelection;
+    refreshCanvas();
   };
 
   // Arrow-key nudge. Moves are coalesced into one undo step per key press (see onKeyup).
@@ -363,28 +432,70 @@
   };
 
   const onKeydown = (e: KeyboardEvent) => {
-    const target = e.target as HTMLElement;
-    const inField = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
+    const target = e.target instanceof Element ? e.target : null;
+    const inField = Boolean(target?.closest("input, textarea, select, [contenteditable='true']"));
     const active = canvas?.getActiveObject();
     const editingText = active instanceof fabric.IText && active.isEditing;
+    const modifier = e.ctrlKey || e.metaKey;
+    const key = e.key.toLocaleLowerCase();
 
-    if ((e.ctrlKey || e.metaKey) && (e.key === "z" || e.key === "Z")) {
+    if (printDialogOpen || libraryOpen || dataDialogOpen || fontsDialogOpen) return;
+
+    if (modifier && key === "z") {
       if (inField || editingText) return;
       e.preventDefault();
       if (e.shiftKey) redo();
       else undo();
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "y" || e.key === "Y")) {
+    if (modifier && key === "y") {
       if (inField || editingText) return;
       e.preventDefault();
       redo();
       return;
     }
-    if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
+    if (modifier && key === "d") {
       if (inField || editingText || !active) return;
       e.preventDefault();
-      duplicateSelection();
+      void duplicateSelection();
+      return;
+    }
+    if (modifier && key === "c") {
+      if (inField || editingText || !active) return;
+      e.preventDefault();
+      copySelection();
+      return;
+    }
+    if (modifier && key === "x") {
+      if (inField || editingText || !active) return;
+      e.preventDefault();
+      void cutSelection();
+      return;
+    }
+    if (modifier && key === "v") {
+      if (inField || editingText || !clipboardAvailable) return;
+      e.preventDefault();
+      void pasteSelection();
+      return;
+    }
+    if (modifier && key === "a") {
+      if (inField || editingText || !canvas?.size()) return;
+      e.preventDefault();
+      selectAllObjects();
+      return;
+    }
+    if (modifier && key === "g") {
+      if (inField || editingText || !active) return;
+      e.preventDefault();
+      if (e.shiftKey) ungroupSelection();
+      else groupSelection();
+      return;
+    }
+
+    if (!inField && !editingText && active && e.key === "Escape") {
+      canvas?.discardActiveObject();
+      selection = null;
+      refreshCanvas();
       return;
     }
 

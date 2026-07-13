@@ -7,6 +7,7 @@
   import { DEFAULT_LABEL_PRESETS, FONT_FAMILIES } from "$/defaults";
   import {
     alignActiveSelection,
+    alignObjectToBounds,
     distributeActiveSelection,
     type SelectionAlignment,
     type SelectionDistribution,
@@ -121,17 +122,13 @@
     onChanged();
   };
 
-  const centerH = () => {
-    if (!selection?.canvas) return;
-    selection.canvas.centerObjectH(selection);
-    selection.setCoords();
-    onChanged();
-  };
-
-  const centerV = () => {
-    if (!selection?.canvas) return;
-    selection.canvas.centerObjectV(selection);
-    selection.setCoords();
+  const alignToLabel = (alignment: SelectionAlignment) => {
+    if (!selection) return;
+    alignObjectToBounds(
+      selection,
+      { left: 0, top: 0, width: labelProps.size.width, height: labelProps.size.height },
+      alignment,
+    );
     onChanged();
   };
 
@@ -274,6 +271,7 @@
       <div class="sec">
         <h3>Arrange</h3>
         {#if selection instanceof fabric.ActiveSelection}
+          <h3 class="subhead first">Align objects</h3>
           <div class="arrange align-grid">
             <button onclick={() => alignSelection("left")}>Left</button>
             <button onclick={() => alignSelection("center-h")}>Center H</button>
@@ -287,18 +285,33 @@
             <button onclick={() => distributeSelection("horizontal")} disabled={selection.size() < 3}>H gaps</button>
             <button onclick={() => distributeSelection("vertical")} disabled={selection.size() < 3}>V gaps</button>
           </div>
-          <h3 class="subhead">Selection</h3>
+          <h3 class="subhead">Align selection to label</h3>
+          <div class="arrange align-grid">
+            <button onclick={() => alignToLabel("left")}>Left</button>
+            <button onclick={() => alignToLabel("center-h")}>Center H</button>
+            <button onclick={() => alignToLabel("right")}>Right</button>
+            <button onclick={() => alignToLabel("top")}>Top</button>
+            <button onclick={() => alignToLabel("center-v")}>Center V</button>
+            <button onclick={() => alignToLabel("bottom")}>Bottom</button>
+          </div>
+          <h3 class="subhead">Layer</h3>
           <div class="arrange">
-            <button onclick={centerH} title="Center selection horizontally on label">⭰ Label H</button>
-            <button onclick={centerV} title="Center selection vertically on label">⭱ Label V</button>
             <button onclick={() => arrange("front")} title="Bring selection to front">⬆ To front</button>
             <button onclick={() => arrange("back")} title="Send selection to back">⬇ To back</button>
           </div>
           <button class="fit-btn group-btn" onclick={onGroup}>Group selection</button>
         {:else}
+          <h3 class="subhead first">Align to label</h3>
+          <div class="arrange align-grid">
+            <button onclick={() => alignToLabel("left")}>Left</button>
+            <button onclick={() => alignToLabel("center-h")}>Center H</button>
+            <button onclick={() => alignToLabel("right")}>Right</button>
+            <button onclick={() => alignToLabel("top")}>Top</button>
+            <button onclick={() => alignToLabel("center-v")}>Center V</button>
+            <button onclick={() => alignToLabel("bottom")}>Bottom</button>
+          </div>
+          <h3 class="subhead">Layer</h3>
           <div class="arrange">
-            <button onclick={centerH} title="Center horizontally">⭰ Center H</button>
-            <button onclick={centerV} title="Center vertically">⭱ Center V</button>
             <button onclick={() => arrange("front")} title="Bring to front">⬆ To front</button>
             <button onclick={() => arrange("back")} title="Send to back">⬇ To back</button>
           </div>
@@ -708,6 +721,10 @@
 
   .sec h3.subhead {
     margin-top: 12px;
+  }
+
+  .sec h3.subhead.first {
+    margin-top: 0;
   }
 
   .group-btn {

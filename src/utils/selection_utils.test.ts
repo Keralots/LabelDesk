@@ -1,6 +1,11 @@
 import * as fabric from "fabric";
 import { describe, expect, it } from "vitest";
-import { alignActiveSelection, distributeActiveSelection } from "$/utils/selection_utils";
+import {
+  alignActiveSelection,
+  alignObjectToBounds,
+  alignmentOffset,
+  distributeActiveSelection,
+} from "$/utils/selection_utils";
 
 const box = (left: number, top: number, width = 20, height = 20) =>
   new fabric.Rect({ left, top, width, height, strokeWidth: 0 });
@@ -11,6 +16,28 @@ const closeTo = (values: number[]) => {
 };
 
 describe("active selection layout", () => {
+  it("calculates offsets to every edge and center of a target", () => {
+    const bounds = { left: 30, top: 40, width: 20, height: 10 };
+    const target = { left: 0, top: 0, width: 100, height: 80 };
+
+    expect(alignmentOffset(bounds, target, "left")).toEqual(new fabric.Point(-30, 0));
+    expect(alignmentOffset(bounds, target, "center-h")).toEqual(new fabric.Point(10, 0));
+    expect(alignmentOffset(bounds, target, "right")).toEqual(new fabric.Point(50, 0));
+    expect(alignmentOffset(bounds, target, "top")).toEqual(new fabric.Point(0, -40));
+    expect(alignmentOffset(bounds, target, "center-v")).toEqual(new fabric.Point(0, -5));
+    expect(alignmentOffset(bounds, target, "bottom")).toEqual(new fabric.Point(0, 30));
+  });
+
+  it("aligns a rotated object by its visible bounding box", () => {
+    const object = box(30, 20, 40, 10);
+    object.rotate(30);
+
+    alignObjectToBounds(object, { left: 0, top: 0, width: 120, height: 80 }, "right");
+
+    const bounds = object.getBoundingRect();
+    expect(bounds.left + bounds.width).toBeCloseTo(120, 5);
+  });
+
   it("aligns object bounding boxes without changing their sizes", () => {
     const objects = [box(10, 10, 20, 10), box(70, 35, 40, 20), box(150, 60, 30, 30)];
     const selection = new fabric.ActiveSelection(objects);

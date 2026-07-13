@@ -2,6 +2,7 @@ import * as fabric from "fabric";
 
 export type SelectionAlignment = "left" | "center-h" | "right" | "top" | "center-v" | "bottom";
 export type SelectionDistribution = "horizontal" | "vertical";
+export type AlignmentBounds = { left: number; top: number; width: number; height: number };
 
 type Bounds = ReturnType<fabric.FabricObject["getBoundingRect"]>;
 
@@ -9,6 +10,35 @@ const moveBy = (object: fabric.FabricObject, x: number, y: number) => {
   const position = object.getXY();
   object.setXY(new fabric.Point(position.x + x, position.y + y));
   object.setCoords();
+};
+
+export const alignmentOffset = (
+  bounds: AlignmentBounds,
+  target: AlignmentBounds,
+  alignment: SelectionAlignment,
+): fabric.Point => {
+  const targetRight = target.left + target.width;
+  const targetBottom = target.top + target.height;
+  if (alignment === "left") return new fabric.Point(target.left - bounds.left, 0);
+  if (alignment === "center-h") {
+    return new fabric.Point(target.left + target.width / 2 - (bounds.left + bounds.width / 2), 0);
+  }
+  if (alignment === "right") return new fabric.Point(targetRight - (bounds.left + bounds.width), 0);
+  if (alignment === "top") return new fabric.Point(0, target.top - bounds.top);
+  if (alignment === "center-v") {
+    return new fabric.Point(0, target.top + target.height / 2 - (bounds.top + bounds.height / 2));
+  }
+  return new fabric.Point(0, targetBottom - (bounds.top + bounds.height));
+};
+
+export const alignObjectToBounds = (
+  object: fabric.FabricObject,
+  target: AlignmentBounds,
+  alignment: SelectionAlignment,
+) => {
+  const offset = alignmentOffset(object.getBoundingRect(), target, alignment);
+  moveBy(object, offset.x, offset.y);
+  object.canvas?.renderAll();
 };
 
 const selectionBounds = (bounds: Bounds[]) => {

@@ -18,6 +18,8 @@
     rev: number;
     labelProps: LabelProps;
     dpmm: number;
+    customFontFamilies: string[];
+    missingFontFamilies: string[];
     onChanged: () => void;
     onDelete: () => void;
     onGroup: () => void;
@@ -33,6 +35,8 @@
     rev,
     labelProps,
     dpmm,
+    customFontFamilies,
+    missingFontFamilies,
     onChanged,
     onDelete,
     onGroup,
@@ -87,6 +91,19 @@
 
   const commonValue = <T,>(values: T[]): T | undefined =>
     values.length > 0 && values.every((value) => value === values[0]) ? values[0] : undefined;
+
+  const fontOptions = () => {
+    const seen = new Set<string>();
+    return [...FONT_FAMILIES, ...customFontFamilies.map((family) => ({ label: family, value: family }))]
+      .filter((font) => {
+        const key = font.value.toLocaleLowerCase();
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+  };
+  const isMissingFont = (family?: string) =>
+    family !== undefined && missingFontFamilies.some((value) => value.toLocaleLowerCase() === family.toLocaleLowerCase());
 
   const setNum = (prop: "left" | "top" | "angle", value: string, mm: boolean) => {
     if (!selection) return;
@@ -304,10 +321,14 @@
             <select id="pp-bulk-ff" class="v" value={commonFont ?? ""}
               onchange={(e) => setBulkTextProp("fontFamily", e.currentTarget.value)}>
               {#if commonFont === undefined}<option value="" disabled>Mixed</option>{/if}
-              {#each FONT_FAMILIES as f (f.value)}
+              {#if isMissingFont(commonFont)}<option value={commonFont}>{commonFont} (missing)</option>{/if}
+              {#each fontOptions() as f (f.value)}
                 <option value={f.value}>{f.label}</option>
               {/each}
             </select>
+            {#if textObjects.some((object) => isMissingFont(object.fontFamily))}
+              <div class="font-warning">A selected font is unavailable. Printing would use a fallback.</div>
+            {/if}
           </div>
           <div class="grid2" style="margin-bottom:8px">
             <div class="field">
@@ -336,10 +357,14 @@
             <label for="pp-ff">Font</label>
             <select id="pp-ff" class="v" value={selection.fontFamily}
               onchange={(e) => setObjProp("fontFamily", e.currentTarget.value)}>
-              {#each FONT_FAMILIES as f (f.value)}
+              {#if isMissingFont(selection.fontFamily)}<option value={selection.fontFamily}>{selection.fontFamily} (missing)</option>{/if}
+              {#each fontOptions() as f (f.value)}
                 <option value={f.value}>{f.label}</option>
               {/each}
             </select>
+            {#if isMissingFont(selection.fontFamily)}
+              <div class="font-warning">Font unavailable - printing would use a fallback.</div>
+            {/if}
           </div>
           <div class="grid2" style="margin-bottom:8px">
             <div class="field">
@@ -582,6 +607,14 @@
   .v:focus {
     outline: none;
     border-color: var(--ink);
+  }
+
+  .font-warning {
+    margin-top: 5px;
+    color: var(--red-2);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1.35;
   }
 
   .v.ro {

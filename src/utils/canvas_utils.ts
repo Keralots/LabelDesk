@@ -28,6 +28,21 @@ export class CanvasUtils {
     }
   }
 
+  /** Recalculate cached text metrics after a web font is added or removed. */
+  static refreshFontMetrics(canvas: fabric.Canvas): void {
+    const refresh = (object: fabric.FabricObject) => {
+      if (object instanceof fabric.Group) {
+        object.getObjects().forEach(refresh);
+        object.triggerLayout();
+      }
+      if (object instanceof fabric.FabricText) object.initDimensions();
+      object.dirty = true;
+      object.setCoords();
+    };
+    canvas.getObjects().forEach(refresh);
+    canvas.renderAll();
+  }
+
   static equalSpacingFillText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, printWidth: number) {
     // calculate every character width, and spacing
     const widths = [];

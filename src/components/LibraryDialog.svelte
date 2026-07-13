@@ -7,9 +7,10 @@
     open: boolean;
     batchAvailable: boolean;
     currentTitle: string;
-    onSave: (title: string, includeCsv: boolean) => void;
-    onLoad: (template: ExportedLabelTemplate) => void;
-    onExport: (includeCsv: boolean) => void;
+    embeddableFontCount: number;
+    onSave: (title: string, includeCsv: boolean, includeFonts: boolean) => void;
+    onLoad: (template: ExportedLabelTemplate) => void | Promise<void>;
+    onExport: (includeCsv: boolean, includeFonts: boolean) => void;
     onExportPng: () => void;
     onImport: () => void;
   }
@@ -18,6 +19,7 @@
     open = $bindable(),
     batchAvailable,
     currentTitle,
+    embeddableFontCount,
     onSave,
     onLoad,
     onExport,
@@ -29,10 +31,12 @@
   let title = $state("");
   let error = $state("");
   let includeCsv = $state(false);
+  let includeFonts = $state(false);
 
   $effect(() => {
     if (open) {
       includeCsv = false;
+      includeFonts = false;
       title = currentTitle === "Untitled" ? "" : currentTitle;
       refresh();
     }
@@ -50,7 +54,7 @@
 
   const save = () => {
     try {
-      onSave(title.trim(), batchAvailable && includeCsv);
+      onSave(title.trim(), batchAvailable && includeCsv, embeddableFontCount > 0 && includeFonts);
       title = "";
       refresh();
     } catch (e) {
@@ -67,9 +71,14 @@
     }
   };
 
-  const load = (tpl: ExportedLabelTemplate) => {
-    onLoad(tpl);
-    open = false;
+  const load = async (tpl: ExportedLabelTemplate) => {
+    error = "";
+    try {
+      await onLoad(tpl);
+      open = false;
+    } catch (caught) {
+      error = caught instanceof Error ? caught.message : `${caught}`;
+    }
   };
 
   const close = () => (open = false);
@@ -104,9 +113,17 @@
         <input type="checkbox" bind:checked={includeCsv} disabled={!batchAvailable} />
         Include batch data in saved and exported labels
       </label>
+      {#if embeddableFontCount > 0}
+        <label class="include">
+          <input type="checkbox" bind:checked={includeFonts} />
+          Include {embeddableFontCount} custom {embeddableFontCount === 1 ? "font" : "fonts"} in saved and exported labels
+        </label>
+      {:else}
+        <div class="include disabled">No custom fonts are used by the current label</div>
+      {/if}
 
       <div class="io-row">
-        <button class="btn io" onclick={() => onExport(batchAvailable && includeCsv)}>Export JSON</button>
+        <button class="btn io" onclick={() => onExport(batchAvailable && includeCsv, embeddableFontCount > 0 && includeFonts)}>Export JSON</button>
         <button class="btn io" onclick={onExportPng}>Export PNG</button>
         <button class="btn io" onclick={onImport}>Import JSON</button>
       </div>
@@ -130,6 +147,7 @@
                 <b>{tpl.title || "Untitled"}</b>
                 <span>{tpl.timestamp ? dayjs.unix(tpl.timestamp).format("YYYY-MM-DD HH:mm") : ""}</span>
                 {#if tpl.csv}<span class="batch">BATCH DATA</span>{/if}
+                {#if tpl.fonts?.length}<span class="fonts">{tpl.fonts.length} FONT{tpl.fonts.length === 1 ? "" : "S"}</span>{/if}
               </div>
               <button class="del" title="Delete" onclick={() => remove(tpl)}>×</button>
             </div>
@@ -359,6 +377,13 @@
   .info span.batch {
     margin-left: 5px;
     color: var(--amber);
+    font-size: 8px;
+    font-weight: 600;
+  }
+
+  .info span.fonts {
+    margin-left: 5px;
+    color: var(--blue);
     font-size: 8px;
     font-weight: 600;
   }

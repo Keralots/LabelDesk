@@ -42,3 +42,9 @@ Drag a selection rectangle around multiple objects or Shift-click them to create
 When every selected object is text, the same panel can apply a font, size, weight, or text alignment to the complete selection. Mixed values are shown explicitly until a shared value is chosen.
 
 For a single text object, **Fit text to 90%** finds the largest font size that fits within a safe 5% margin on every side of the label and centers the result.
+
+## Custom fonts
+
+Open **Fonts** to import a local TTF, OTF, WOFF, or WOFF2 file. Custom fonts stay in this browser and become available in the single- and multi-text font selectors. Removing a font does not rewrite label objects; LabelDesk instead warns wherever the missing family would fall back, including in the print dialog.
+
+Saved and exported labels omit font files by default. Enable **Include custom fonts** in the Library dialog to embed only the custom families used by the current canvas. Embedded fonts are installed before a portable template is rendered.

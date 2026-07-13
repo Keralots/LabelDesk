@@ -26,9 +26,10 @@
     dpmm: number;
     batchEnabled: boolean;
     csvText: string;
+    missingFontFamilies: string[];
   }
 
-  let { open = $bindable(), getCanvasJson, labelProps, dpmm, batchEnabled, csvText }: Props = $props();
+  let { open = $bindable(), getCanvasJson, labelProps, dpmm, batchEnabled, csvText, missingFontFamilies }: Props = $props();
 
   let copies = $state(1);
   let density = $state(3);
@@ -218,6 +219,12 @@
           <div class="validation"><span>Choose a valid inclusive row range.</span></div>
         {:else if batchEnabled && labelCount() === 0}
           <div class="validation"><span>The selected rows produce no labels because $times is zero.</span></div>
+        {/if}
+
+        {#if missingFontFamilies.length > 0}
+          <div class="font-warning">
+            Missing {missingFontFamilies.length === 1 ? "font" : "fonts"}: {missingFontFamilies.join(", ")}. Preview and printing use fallback fonts.
+          </div>
         {/if}
 
         {#if $printError}<div class="error">{$printError}</div>{/if}
@@ -475,6 +482,18 @@
     border-radius: 4px;
     font-family: var(--font-mono);
     font-size: 10.5px;
+  }
+
+  .font-warning {
+    margin-top: 12px;
+    padding: 8px 10px;
+    color: var(--amber);
+    background: rgba(199, 125, 10, 0.08);
+    border: 1px solid var(--amber);
+    border-radius: 4px;
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    line-height: 1.4;
   }
 
   .eta {

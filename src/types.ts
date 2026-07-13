@@ -79,6 +79,12 @@ export const FabricJsonSchema = z.object({
   objects: z.array(FabricObjectSchema),
 });
 
+export const UserFontSchema = z.object({
+  gzippedDataB64: z.string().min(1),
+  family: z.string().trim().min(1).max(80),
+  mimeType: z.string().min(1),
+});
+
 export const ExportedLabelTemplateSchema = z.object({
   canvas: FabricJsonSchema,
   label: LabelPropsSchema,
@@ -87,6 +93,7 @@ export const ExportedLabelTemplateSchema = z.object({
   timestamp: z.number().positive().optional(),
   id: z.string().optional(), // filled with localStorage key, not exported
   csv: CsvParamsSchema.optional(),
+  fonts: z.array(UserFontSchema).optional(),
 });
 
 export const EditorSessionSchema = z.object({
@@ -141,13 +148,6 @@ export const UserIconSchema = z.object({
   name: z.string(),
   data: z.string(),
 });
-
-export const UserFontSchema = z
-  .object({
-    gzippedDataB64: z.string(),
-    family: z.string(),
-    mimeType: z.string(),
-  });
 
 export type CsvParams = z.infer<typeof CsvParamsSchema>;
 export type UserIcon = z.infer<typeof UserIconSchema>;

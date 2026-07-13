@@ -18,14 +18,22 @@
   import PrintDialog from "$/components/PrintDialog.svelte";
   import LibraryDialog from "$/components/LibraryDialog.svelte";
   import DataDialog from "$/components/DataDialog.svelte";
+  import FontsDialog from "$/components/FontsDialog.svelte";
   import { LocalStoragePersistence } from "$/utils/persistence";
   import { UndoRedo } from "$/utils/undo_redo";
   import { ExportedLabelTemplateSchema, LabelPropsSchema } from "$/types";
   import type { EditorSession, ExportedLabelTemplate, LabelProps } from "$/types";
   import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
   import type { FabricJson } from "$/types";
-  import { csvData } from "$/stores";
+  import { csvData, loadedFontFamilies, userFonts } from "$/stores";
   import { parseBatchCsv } from "$/utils/batch_data";
+  import {
+    fontFamiliesUsedByCanvas,
+    fontsUsedByCanvas,
+    mergeUserFonts,
+    missingFontFamilies as findMissingFontFamilies,
+    syncUserFonts,
+  } from "$/utils/font_utils";
 
   let canvasEl: HTMLCanvasElement;
   let canvas: CustomCanvas | undefined;
@@ -43,6 +51,18 @@
   let autosaveState = $state<"idle" | "saving" | "saved" | "error">("idle");
   let batchEnabled = $state(false);
   const batchRowCount = $derived(parseBatchCsv($csvData.data).rows.length);
+  const usedFontFamilies = $derived.by(() => {
+    void rev;
+    return canvas ? fontFamiliesUsedByCanvas(canvas.toJSON() as FabricJson) : [];
+  });
+  const missingFontFamilies = $derived.by(() => {
+    void rev;
+    return canvas ? findMissingFontFamilies(canvas.toJSON() as FabricJson, $loadedFontFamilies) : [];
+  });
+  const embeddableFontCount = $derived.by(() => {
+    void rev;
+    return canvas ? fontsUsedByCanvas(canvas.toJSON() as FabricJson, $userFonts).length : 0;
+  });
 
   const DPMM = 8; // 203 dpi
   const AUTOSAVE_DELAY_MS = 400;
@@ -401,11 +421,12 @@
   let printDialogOpen = $state(false);
   let libraryOpen = $state(false);
   let dataDialogOpen = $state(false);
+  let fontsDialogOpen = $state(false);
   const getCanvasJson = (): FabricJson => CanvasUtils.serializeCanvas(canvas!);
 
-  const saveLabelToLibrary = (title: string, includeCsv: boolean) => {
+  const saveLabelToLibrary = (title: string, includeCsv: boolean, includeFonts: boolean) => {
     if (!canvas) return;
-    const tpl = FileUtils.makeExportedLabel(canvas, labelProps, includeCsv);
+    const tpl = FileUtils.makeExportedLabel(canvas, labelProps, includeCsv, includeFonts);
     const nextTitle = title || (documentTitle !== "Untitled" ? documentTitle : "");
     if (nextTitle) tpl.title = nextTitle;
     const existing = LocalStoragePersistence.loadLabels();
@@ -421,6 +442,11 @@
     if (!canvas) return;
     undoRedo.paused = true;
     try {
+      if (tpl.fonts?.length) {
+        const mergedFonts = mergeUserFonts($userFonts, tpl.fonts);
+        $userFonts = mergedFonts;
+        await syncUserFonts(mergedFonts);
+      }
       canvas.discardActiveObject();
       selection = null;
       if (tpl.label?.size) {
@@ -445,9 +471,9 @@
     markDocumentClean();
   };
 
-  const exportLabelJson = (includeCsv: boolean) => {
+  const exportLabelJson = (includeCsv: boolean, includeFonts: boolean) => {
     if (!canvas) return;
-    const tpl = FileUtils.makeExportedLabel(canvas, labelProps, includeCsv);
+    const tpl = FileUtils.makeExportedLabel(canvas, labelProps, includeCsv, includeFonts);
     if (documentTitle !== "Untitled") tpl.title = documentTitle;
     FileUtils.saveLabelAsJson(tpl);
     markDocumentClean();
@@ -476,6 +502,13 @@
       height: labelProps.size.height,
     });
     canvas.setLabelProps(labelProps);
+    const unsubscribeFonts = userFonts.subscribe((fonts) => {
+      void syncUserFonts(fonts).then(() => {
+        if (disposed || !canvas) return;
+        CanvasUtils.refreshFontMetrics(canvas);
+        rev++;
+      });
+    });
     canvas.onZoomChange = (zoom) => {
       zoomPercent = Math.round(zoom * 100);
     };
@@ -541,6 +574,7 @@
       let restoredSession: EditorSession | null = null;
 
       try {
+        await syncUserFonts($userFonts);
         restoredSession = LocalStoragePersistence.loadEditorSession();
         if (restoredSession) {
           labelProps = {
@@ -575,6 +609,7 @@
       if (disposed || !canvas) return;
       canvas.virtualZoom(2);
       canvas.renderAll();
+      rev++;
       undoRedo.paused = false;
       undoRedo.push(canvas, labelProps);
 
@@ -594,6 +629,7 @@
       disposed = true;
       flushAutosave();
       autosaveReady = false;
+      unsubscribeFonts();
       canvas?.dispose();
     };
   });
@@ -618,6 +654,9 @@
     <button class="menu-btn" onclick={() => (libraryOpen = true)}>Library</button>
     <button class="menu-btn" class:active={batchEnabled} onclick={() => (dataDialogOpen = true)}>
       Data{batchEnabled ? ` (${batchRowCount})` : ""}
+    </button>
+    <button class="menu-btn" class:warning={missingFontFamilies.length > 0} onclick={() => (fontsDialogOpen = true)}>
+      Fonts{missingFontFamilies.length > 0 ? ` (${missingFontFamilies.length} missing)` : ""}
     </button>
     <div class="undo-cluster">
       <button class="icon-btn" title="Undo (Ctrl+Z)" disabled={undoDisabled} onclick={undo} aria-label="Undo">
@@ -659,6 +698,7 @@
     dpmm={DPMM}
     {batchEnabled}
     csvText={$csvData.data}
+    {missingFontFamilies}
   />
   <DataDialog
     bind:open={dataDialogOpen}
@@ -668,10 +708,16 @@
     onAddPlaceholder={addPlaceholder}
     onChanged={documentChanged}
   />
+  <FontsDialog
+    bind:open={fontsDialogOpen}
+    usedFamilies={usedFontFamilies}
+    missingFamilies={missingFontFamilies}
+  />
   <LibraryDialog
     bind:open={libraryOpen}
     batchAvailable={batchEnabled}
     currentTitle={documentTitle}
+    {embeddableFontCount}
     onSave={saveLabelToLibrary}
     onLoad={loadTemplate}
     onExport={exportLabelJson}
@@ -698,6 +744,8 @@
       {rev}
       {labelProps}
       dpmm={DPMM}
+      customFontFamilies={$userFonts.map((font) => font.family)}
+      {missingFontFamilies}
       onChanged={onPropChanged}
       onDelete={deleteSelection}
       onGroup={groupSelection}
@@ -780,6 +828,12 @@
   .menu-btn.active {
     color: var(--amber);
     background: rgba(199, 125, 10, 0.09);
+    font-weight: 600;
+  }
+
+  .menu-btn.warning {
+    color: var(--red-2);
+    background: rgba(190, 58, 45, 0.08);
     font-weight: 600;
   }
 

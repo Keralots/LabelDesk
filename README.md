@@ -40,3 +40,5 @@ Use **Export PNG** in the Library dialog to save the current label as a one-pixe
 Drag a selection rectangle around multiple objects or Shift-click them to create a multi-selection. The properties panel can align edges and centers, distribute three or more objects with equal gaps, center the complete selection on the label, change its stacking order, and group or ungroup objects.
 
 When every selected object is text, the same panel can apply a font, size, weight, or text alignment to the complete selection. Mixed values are shown explicitly until a shared value is chosen.
+
+For a single text object, **Fit text to 90%** finds the largest font size that fits within a safe 5% margin on every side of the label and centers the result.

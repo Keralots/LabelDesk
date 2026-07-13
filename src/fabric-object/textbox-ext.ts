@@ -1,4 +1,5 @@
 import * as fabric from "fabric";
+import { findLargestFittingFontSize, MIN_FITTED_FONT_SIZE } from "$/utils/text_fit";
 
 interface UniqueTextboxExtProps {
   fontAutoSize: boolean;
@@ -60,6 +61,35 @@ export class TextboxExt<
       this.set({ width: maxWidth });
       linesCount = this._splitTextIntoLines(this.text).lines.length;
     }
+  }
+
+  /** Resize the font and text box to occupy the largest safe area inside the given bounds. */
+  fitFontToBounds(maxWidth: number, maxHeight: number): number {
+    const targetWidth = Math.max(maxWidth, this.minWidth);
+    const targetHeight = Math.max(maxHeight, MIN_FITTED_FONT_SIZE);
+    const contentWidth = Math.max(this.minWidth, targetWidth - this.strokeWidth);
+    const maxFontSize = Math.max(
+      MIN_FITTED_FONT_SIZE,
+      Math.ceil(Math.max(targetWidth, targetHeight) * 2),
+    );
+
+    const applySize = (fontSize: number) => {
+      this.set({
+        fontSize,
+        width: contentWidth,
+        scaleX: 1,
+        scaleY: 1,
+      });
+      this.setCoords();
+    };
+
+    const best = findLargestFittingFontSize((fontSize) => {
+      applySize(fontSize);
+      return this.getScaledWidth() <= targetWidth + 0.01 && this.getScaledHeight() <= targetHeight + 0.01;
+    }, MIN_FITTED_FONT_SIZE, maxFontSize);
+
+    applySize(best);
+    return best;
   }
 
   override enterEditingImpl() {

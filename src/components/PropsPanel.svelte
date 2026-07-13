@@ -160,6 +160,16 @@
     onChanged();
   };
 
+  /** Grow or shrink selected text to fill 90% of the label, then center it. */
+  const fillTextToLabel = () => {
+    if (!(selection instanceof TextboxExt) || !selection.text.trim()) return;
+    selection.set("textAlign", "center");
+    selection.fitFontToBounds(labelProps.size.width * 0.9, labelProps.size.height * 0.9);
+    selection.canvas?.centerObject(selection);
+    selection.setCoords();
+    onChanged();
+  };
+
   /** Objects whose scaled size can be typed directly (vector shapes, not text/image/codes). */
   const sizeEditable = (obj: fabric.FabricObject) =>
     !(
@@ -364,6 +374,13 @@
               <label for="pp-fw2">Wrap width</label>
               <button id="pp-fw2" class="v toggle" onclick={fitTextWidth}>Fit label</button>
             </div>
+          </div>
+          <div class="field" style="margin-top:8px">
+            <label for="pp-fill-label">Fill label</label>
+            <button id="pp-fill-label" class="fit-btn" onclick={fillTextToLabel}
+              title="Resize and center this text within 90% of the label">
+              Fit text to 90%
+            </button>
           </div>
         </div>
       {:else if selection instanceof Barcode}

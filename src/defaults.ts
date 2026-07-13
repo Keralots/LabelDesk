@@ -46,6 +46,18 @@ export const DEFAULT_LABEL_PROPS: LabelProps = {
   },
 };
 
+/** Font families offered in the text font picker (Windows-available + the default). */
+export const FONT_FAMILIES: { label: string; value: string }[] = [
+  { label: "Sans (default)", value: "Noto Sans Variable" },
+  { label: "Segoe UI", value: "Segoe UI" },
+  { label: "Arial", value: "Arial" },
+  { label: "Georgia", value: "Georgia" },
+  { label: "Times New Roman", value: "Times New Roman" },
+  { label: "Courier New", value: "Courier New" },
+  { label: "Consolas", value: "Consolas" },
+  { label: "Impact", value: "Impact" },
+];
+
 /** Object movement snapping */
 export const GRID_SIZE: number = 5;
 

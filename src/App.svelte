@@ -18,6 +18,7 @@
   import LibraryDialog from "$/components/LibraryDialog.svelte";
   import { LocalStoragePersistence } from "$/utils/persistence";
   import { UndoRedo } from "$/utils/undo_redo";
+  import { ExportedLabelTemplateSchema } from "$/types";
   import type { ExportedLabelTemplate, LabelProps } from "$/types";
   import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
   import type { FabricJson } from "$/types";
@@ -48,6 +49,16 @@
     labelProps = { ...labelProps, size: { width, height } };
     canvas.setLabelProps(labelProps);
     canvas.setLabelSize(width, height);
+    rev++;
+    commit();
+  };
+
+  /** Update non-dimension label properties (shape, split, mirror). Undoable. */
+  const updateLabelProps = (patch: Partial<LabelProps>) => {
+    if (!canvas) return;
+    labelProps = { ...labelProps, ...patch };
+    canvas.setLabelProps(labelProps);
+    canvas.renderAll();
     rev++;
     commit();
   };
@@ -180,7 +191,7 @@
     LocalStoragePersistence.saveLabels([...existing, tpl]);
   };
 
-  const loadLabelFromLibrary = async (tpl: ExportedLabelTemplate) => {
+  const loadTemplate = async (tpl: ExportedLabelTemplate) => {
     if (!canvas) return;
     undoRedo.paused = true;
     canvas.discardActiveObject();
@@ -195,6 +206,22 @@
     rev++;
     undoRedo.paused = false;
     commit();
+  };
+
+  const exportLabelJson = () => {
+    if (!canvas) return;
+    FileUtils.saveLabelAsJson(FileUtils.makeExportedLabel(canvas, labelProps, false));
+  };
+
+  const importLabelJson = async () => {
+    try {
+      const text = await FileUtils.pickAndReadSingleTextFile("json");
+      const tpl = ExportedLabelTemplateSchema.parse(JSON.parse(text));
+      await loadTemplate(tpl);
+      libraryOpen = false;
+    } catch (e) {
+      console.error("Import failed:", e);
+    }
   };
 
   onMount(() => {
@@ -225,11 +252,13 @@
       undoRedo.paused = true;
       canvas.discardActiveObject();
       selection = null;
-      const sz = data.label?.size;
-      if (sz && (sz.width !== labelProps.size.width || sz.height !== labelProps.size.height)) {
-        labelProps = { ...data.label, size: { ...sz } };
+      if (data.label) {
+        const resized =
+          data.label.size.width !== labelProps.size.width ||
+          data.label.size.height !== labelProps.size.height;
+        labelProps = { ...data.label, size: { ...data.label.size } };
         canvas.setLabelProps(labelProps);
-        canvas.setLabelSize(sz.width, sz.height);
+        if (resized) canvas.setLabelSize(labelProps.size.width, labelProps.size.height);
       }
       await FileUtils.loadCanvasState(canvas, data.canvas);
       canvas.renderAll();
@@ -301,7 +330,13 @@
   </header>
 
   <PrintDialog bind:open={printDialogOpen} {getCanvasJson} {labelProps} dpmm={DPMM} />
-  <LibraryDialog bind:open={libraryOpen} onSave={saveLabelToLibrary} onLoad={loadLabelFromLibrary} />
+  <LibraryDialog
+    bind:open={libraryOpen}
+    onSave={saveLabelToLibrary}
+    onLoad={loadTemplate}
+    onExport={exportLabelJson}
+    onImport={importLabelJson}
+  />
 
   <div class="main">
     <ToolRail onAdd={addObject} />
@@ -325,6 +360,7 @@
       onChanged={onPropChanged}
       onDelete={deleteSelection}
       onLabelSize={applyLabelSize}
+      onLabelProps={updateLabelProps}
     />
   </div>
 

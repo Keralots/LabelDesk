@@ -7,9 +7,11 @@
     open: boolean;
     onSave: (title: string) => void;
     onLoad: (template: ExportedLabelTemplate) => void;
+    onExport: () => void;
+    onImport: () => void;
   }
 
-  let { open = $bindable(), onSave, onLoad }: Props = $props();
+  let { open = $bindable(), onSave, onLoad, onExport, onImport }: Props = $props();
 
   let labels = $state<ExportedLabelTemplate[]>([]);
   let title = $state("");
@@ -79,6 +81,11 @@
           onkeydown={(e) => e.key === "Enter" && save()}
         />
         <button class="btn save" onclick={save}>Save current</button>
+      </div>
+
+      <div class="io-row">
+        <button class="btn io" onclick={onExport}>Export JSON</button>
+        <button class="btn io" onclick={onImport}>Import JSON</button>
       </div>
 
       {#if error}
@@ -202,6 +209,32 @@
   .btn.save:active {
     transform: translate(2px, 2px);
     box-shadow: none;
+  }
+
+  .io-row {
+    display: flex;
+    gap: 10px;
+    padding: 0 18px 14px;
+    border-bottom: 1px solid var(--line);
+    flex: none;
+  }
+
+  .btn.io {
+    flex: 1;
+    font-family: var(--font-ui);
+    font-size: 12px;
+    font-weight: 600;
+    padding: 8px 0;
+    border-radius: 4px;
+    cursor: pointer;
+    border: 1.5px solid var(--line-2);
+    background: var(--paper);
+    color: var(--ink-2);
+  }
+
+  .btn.io:hover {
+    border-color: var(--ink);
+    color: var(--ink);
   }
 
   .error {

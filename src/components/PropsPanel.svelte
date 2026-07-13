@@ -4,7 +4,7 @@
   import Barcode from "$/fabric-object/barcode";
   import QRCode from "$/fabric-object/qrcode";
   import type { LabelProps } from "$/types";
-  import { DEFAULT_LABEL_PRESETS } from "$/defaults";
+  import { DEFAULT_LABEL_PRESETS, FONT_FAMILIES } from "$/defaults";
 
   interface Props {
     selection: fabric.FabricObject | null;
@@ -16,9 +16,12 @@
     onDelete: () => void;
     /** apply a new label size (millimetres) */
     onLabelSize: (widthMm: number, heightMm: number) => void;
+    /** update non-dimension label properties (shape, split, mirror) */
+    onLabelProps: (patch: Partial<LabelProps>) => void;
   }
 
-  let { selection, rev, labelProps, dpmm, onChanged, onDelete, onLabelSize }: Props = $props();
+  let { selection, rev, labelProps, dpmm, onChanged, onDelete, onLabelSize, onLabelProps }: Props =
+    $props();
 
   const px2mm = (px: number) => Math.round((px / dpmm) * 10) / 10;
   const mm2px = (mm: number) => mm * dpmm;
@@ -36,6 +39,12 @@
 
   const presetActive = (wMm: number, hMm: number) =>
     px2mm(labelProps.size.width) === wMm && px2mm(labelProps.size.height) === hMm;
+
+  const SHAPES = [
+    ["rect", "Rect"],
+    ["rounded_rect", "Round"],
+    ["circle", "Circle"],
+  ] as const;
 
   const objectTitle = (obj: fabric.FabricObject): string => {
     if (obj instanceof TextboxExt) return "Text";
@@ -101,6 +110,15 @@
       {#if selection instanceof TextboxExt}
         <div class="sec">
           <h3>Text</h3>
+          <div class="field" style="margin-bottom:8px">
+            <label for="pp-ff">Font</label>
+            <select id="pp-ff" class="v" value={selection.fontFamily}
+              onchange={(e) => setObjProp("fontFamily", e.currentTarget.value)}>
+              {#each FONT_FAMILIES as f (f.value)}
+                <option value={f.value}>{f.label}</option>
+              {/each}
+            </select>
+          </div>
           <div class="grid2" style="margin-bottom:8px">
             <div class="field">
               <label for="pp-fs">Size · px</label>
@@ -191,6 +209,49 @@
         {/if}
       </div>
     {/key}
+
+    <div class="sec">
+      <h3>Shape</h3>
+      <div class="seg">
+        {#each SHAPES as [val, lbl] (val)}
+          <button class:on={(labelProps.shape ?? "rect") === val} onclick={() => onLabelProps({ shape: val })}>
+            {lbl}
+          </button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="sec">
+      <h3>Layout</h3>
+      <div class="grid2" style="margin-bottom:8px">
+        <div class="field">
+          <label for="pp-split">Split</label>
+          <select id="pp-split" class="v" value={labelProps.split ?? "none"}
+            onchange={(e) => onLabelProps({ split: e.currentTarget.value as LabelProps["split"] })}>
+            <option value="none">None</option>
+            <option value="vertical">Vertical</option>
+            <option value="horizontal">Horizontal</option>
+          </select>
+        </div>
+        {#if (labelProps.split ?? "none") !== "none"}
+          <div class="field">
+            <label for="pp-parts">Parts</label>
+            <input id="pp-parts" class="v" type="number" min="2" step="1" value={labelProps.splitParts ?? 2}
+              onchange={(e) => onLabelProps({ splitParts: Math.max(2, parseInt(e.currentTarget.value) || 2) })} />
+          </div>
+        {/if}
+      </div>
+      <div class="field">
+        <label for="pp-mirror">Mirror</label>
+        <select id="pp-mirror" class="v" value={labelProps.mirror ?? "none"}
+          onchange={(e) => onLabelProps({ mirror: e.currentTarget.value as LabelProps["mirror"] })}>
+          <option value="none">None</option>
+          <option value="copy">Copy</option>
+          <option value="flip">Flip</option>
+        </select>
+      </div>
+    </div>
+
     <div class="sec hint">Add an object from the left rail, or click one on the canvas to edit it. Double-click text to type.</div>
   {/if}
 </div>

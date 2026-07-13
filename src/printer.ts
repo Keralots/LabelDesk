@@ -15,7 +15,7 @@ import {
 } from "@mmote/niimbluelib";
 import { CustomCanvas } from "$/fabric-object/custom_canvas";
 import { canvasPreprocess } from "$/utils/canvas_preprocess";
-import { copyImageData, threshold, atkinson } from "$/utils/post_process";
+import { copyImageData, threshold, atkinson, bayer } from "$/utils/post_process";
 import type { FabricJson, LabelProps, PostProcessType } from "$/types";
 
 export type ConnState = "disconnected" | "connecting" | "connected";
@@ -103,23 +103,13 @@ export interface PrintOptions {
   threshold?: number;
 }
 
-/** Render label JSON to a 1-bit image and send it to the printer. */
-export const printLabel = async (
+/** Render label JSON to a 1-bit canvas (shared by the print dialog preview and the print path). */
+export const renderPrintCanvas = async (
   canvasJson: FabricJson,
   labelProps: LabelProps,
   options: PrintOptions = {},
-): Promise<void> => {
-  if (client === undefined || get(connectionState) !== "connected") {
-    throw new Error("Printer not connected");
-  }
-
-  const quantity = options.quantity ?? 1;
-  const density = options.density ?? get(printerMeta)?.densityDefault ?? 3;
+): Promise<HTMLCanvasElement> => {
   const thresholdValue = options.threshold ?? 140;
-
-  printError.set("");
-  printState.set("sending");
-  printProgress.set(0);
 
   const fabricTempCanvas = new CustomCanvas(undefined, {
     width: labelProps.size.width,
@@ -138,7 +128,14 @@ export const printLabel = async (
     const preRendered = fabricTempCanvas.toCanvasElement();
     const ctx = preRendered.getContext("2d")!;
     let iData = copyImageData(ctx.getImageData(0, 0, preRendered.width, preRendered.height));
-    iData = options.postProcess === "dither" ? atkinson(iData, thresholdValue) : threshold(iData, thresholdValue);
+
+    if (options.postProcess === "dither") {
+      iData = atkinson(iData, thresholdValue);
+    } else if (options.postProcess === "bayer") {
+      iData = bayer(iData, thresholdValue);
+    } else {
+      iData = threshold(iData, thresholdValue);
+    }
 
     const printCanvas = document.createElement("canvas");
     printCanvas.width = preRendered.width;
@@ -147,6 +144,31 @@ export const printLabel = async (
     printCtx.fillStyle = "white";
     printCtx.fillRect(0, 0, printCanvas.width, printCanvas.height);
     printCtx.putImageData(iData, 0, 0);
+    return printCanvas;
+  } finally {
+    fabricTempCanvas.dispose();
+  }
+};
+
+/** Render label JSON to a 1-bit image and send it to the printer. */
+export const printLabel = async (
+  canvasJson: FabricJson,
+  labelProps: LabelProps,
+  options: PrintOptions = {},
+): Promise<void> => {
+  if (client === undefined || get(connectionState) !== "connected") {
+    throw new Error("Printer not connected");
+  }
+
+  const quantity = options.quantity ?? 1;
+  const density = options.density ?? get(printerMeta)?.densityDefault ?? 3;
+
+  printError.set("");
+  printState.set("sending");
+  printProgress.set(0);
+
+  try {
+    const printCanvas = await renderPrintCanvas(canvasJson, labelProps, options);
 
     const taskName: PrintTaskName = client.getPrintTaskType() ?? "D110";
     console.log(`Print task: ${taskName}, density ${density}, quantity ${quantity}`);
@@ -183,7 +205,6 @@ export const printLabel = async (
     printError.set(`${e}`);
     throw e;
   } finally {
-    fabricTempCanvas.dispose();
     printState.set("idle");
     printProgress.set(0);
   }

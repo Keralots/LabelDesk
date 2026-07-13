@@ -14,17 +14,8 @@
     OBJECT_DEFAULTS_TEXT,
     OBJECT_DEFAULTS_VECTOR,
   } from "$/defaults";
-  import {
-    connect,
-    disconnect,
-    printLabel,
-    connectionState,
-    printerName,
-    heartbeat,
-    printState,
-    printProgress,
-    printError,
-  } from "$/printer";
+  import PrintDialog from "$/components/PrintDialog.svelte";
+  import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
   import type { FabricJson } from "$/types";
 
   let canvasEl: HTMLCanvasElement;
@@ -118,14 +109,9 @@
     }
   };
 
-  const onPrintClick = async () => {
-    if (!canvas) return;
-    try {
-      await printLabel(canvas.toJSON() as FabricJson, DEFAULT_LABEL_PROPS, { quantity: 1 });
-    } catch (e) {
-      console.error("Print failed:", e);
-    }
-  };
+  let printDialogOpen = $state(false);
+
+  const getCanvasJson = (): FabricJson => canvas!.toJSON() as FabricJson;
 
   onMount(() => {
     canvas = new CustomCanvas(canvasEl, {
@@ -188,20 +174,10 @@
         Connect printer
       {/if}
     </button>
-    <button class="btn-print" disabled={$connectionState !== "connected" || $printState !== "idle"} onclick={onPrintClick}>
-      {#if $printState === "sending"}
-        Sending…
-      {:else if $printState === "printing"}
-        Printing {$printProgress}%
-      {:else}
-        Print
-      {/if}
-    </button>
+    <button class="btn-print" onclick={() => (printDialogOpen = true)}>Print</button>
   </header>
 
-  {#if $printError}
-    <div class="print-error">{$printError}</div>
-  {/if}
+  <PrintDialog bind:open={printDialogOpen} {getCanvasJson} labelProps={DEFAULT_LABEL_PROPS} dpmm={DPMM} />
 
   <div class="main">
     <ToolRail onAdd={addObject} />
@@ -330,13 +306,6 @@
     }
   }
 
-  .print-error {
-    padding: 8px 16px;
-    background: var(--red);
-    color: #fff8f0;
-    font-family: var(--font-mono);
-    font-size: 11.5px;
-  }
 
   .btn-print {
     font-family: var(--font-ui);

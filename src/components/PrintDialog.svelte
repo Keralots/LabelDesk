@@ -53,11 +53,12 @@
     if (!open) return;
     const source = csvText;
     const enabled = batchEnabled;
-    parsed = enabled
+    const nextParsed = enabled
       ? validateBatchForCanvas(parseBatchCsv(source), getCanvasJson())
       : { columns: [], rows: [], errors: [], valid: true };
+    parsed = nextParsed;
 
-    const lastRow = Math.max(1, parsed.rows.length);
+    const lastRow = Math.max(1, nextParsed.rows.length);
     previewIndex = 0;
     rangeStart = 1;
     rangeEnd = lastRow;
@@ -228,6 +229,7 @@
             row {$printCurrentRow} - {$printProgress}%
           {:else}
             {$printerName || "printer"} - {mm(labelProps.size.width)} x {mm(labelProps.size.height)} mm
+            <b>· {labelCount()} {labelCount() === 1 ? "label" : "labels"}</b>
           {/if}
         </span>
         <div class="foot-btns">
@@ -507,6 +509,11 @@
     background: transparent;
     border-color: transparent;
     box-shadow: none;
+  }
+
+  .eta b {
+    color: var(--ink);
+    font-weight: 700;
   }
 
   .btn:disabled { opacity: 0.5; pointer-events: none; }

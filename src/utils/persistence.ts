@@ -1,5 +1,6 @@
 import {
   AutomationPropsSchema,
+  EditorSessionSchema,
   ExportedLabelTemplateSchema,
   FabricJsonSchema,
   LabelPresetSchema,
@@ -7,13 +8,13 @@ import {
   PreviewPropsSchema,
   type AutomationProps,
   type ConnectionType,
+  type EditorSession,
   type ExportedLabelTemplate,
   type LabelPreset,
   type LabelProps,
   type PreviewProps,
 } from "$/types";
 import { z } from "zod";
-import { FileUtils } from "$/utils/file_utils";
 import { get, writable, type Updater, type Writable } from "svelte/store";
 
 /** Writable store, value is persisted to localStorage */
@@ -52,6 +53,12 @@ export function writablePersisted<T>(
 }
 
 export class LocalStoragePersistence {
+  private static readonly EDITOR_SESSION_KEY = "editor_session_v1";
+
+  private static timestamp(): number {
+    return Math.floor(Date.now() / 1000);
+  }
+
   /** Result in kilobytes */
   static usedSpace(): number {
     let total = 0;
@@ -148,7 +155,7 @@ export class LocalStoragePersistence {
     labels.forEach((label) => {
       try {
         if (label.timestamp === undefined) {
-          label.timestamp = FileUtils.timestamp();
+          label.timestamp = this.timestamp();
         }
 
         const basename = `saved_label_${label.timestamp}`;
@@ -195,7 +202,7 @@ export class LocalStoragePersistence {
       const item: ExportedLabelTemplate = {
         label: legacyLabel,
         canvas: legacyCanvas,
-        timestamp: FileUtils.timestamp(),
+        timestamp: this.timestamp(),
       };
       this.validateAndSaveObject(
         `saved_label_${item.timestamp}`,
@@ -224,6 +231,25 @@ export class LocalStoragePersistence {
       });
 
     return items;
+  }
+
+  static saveEditorSession(session: EditorSession | null): void {
+    this.validateAndSaveObject(
+      this.EDITOR_SESSION_KEY,
+      session,
+      EditorSessionSchema,
+    );
+  }
+
+  static loadEditorSession(): EditorSession | null {
+    return this.loadAndValidateObject(
+      this.EDITOR_SESSION_KEY,
+      EditorSessionSchema,
+    );
+  }
+
+  static clearEditorSession(): void {
+    localStorage.removeItem(this.EDITOR_SESSION_KEY);
   }
 
   /**

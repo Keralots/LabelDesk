@@ -3,8 +3,31 @@ import ArUcoMarker from "$/fabric-object/aruco";
 import Barcode from "$/fabric-object/barcode";
 import QRCode from "$/fabric-object/qrcode";
 import { OBJECT_DEFAULTS_TEXT } from "$/defaults";
+import type { FabricJson } from "$/types";
 
 export class CanvasUtils {
+  /**
+   * Serialize top-level canvas coordinates even while an ActiveSelection is active.
+   * Fabric stores selected children relative to the temporary selection, so a direct
+   * canvas.toJSON() would otherwise corrupt undo, recovery, export, and printing.
+   */
+  static serializeCanvas(canvas: fabric.Canvas): FabricJson {
+    const active = canvas.getActiveObject();
+    if (!(active instanceof fabric.ActiveSelection)) {
+      return canvas.toJSON() as FabricJson;
+    }
+
+    const objects = [...active.getObjects()];
+    canvas.discardActiveObject();
+    try {
+      return canvas.toJSON() as FabricJson;
+    } finally {
+      const restored = new fabric.ActiveSelection(objects, { canvas });
+      canvas.setActiveObject(restored);
+      canvas.renderAll();
+    }
+  }
+
   static equalSpacingFillText(ctx: CanvasRenderingContext2D, text: string, x: number, y: number, printWidth: number) {
     // calculate every character width, and spacing
     const widths = [];

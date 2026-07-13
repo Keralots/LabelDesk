@@ -10,6 +10,7 @@
     revision: number;
     getCanvasJson: () => FabricJson;
     onAddPlaceholder: (column: string) => void;
+    onChanged: () => void;
   }
 
   let {
@@ -18,6 +19,7 @@
     revision,
     getCanvasJson,
     onAddPlaceholder,
+    onChanged,
   }: Props = $props();
 
   let parsed = $state<BatchParseResult>({ columns: [], rows: [], errors: [], valid: false });
@@ -36,6 +38,7 @@
       const data = await FileUtils.pickAndReadSingleTextFile("csv");
       $csvData = { data };
       enabled = true;
+      onChanged();
     } catch (error) {
       importError = `${error}`;
     }
@@ -63,7 +66,14 @@
 
       <div class="toolbar">
         <label class="enable">
-          <input type="checkbox" bind:checked={enabled} />
+          <input
+            type="checkbox"
+            checked={enabled}
+            onchange={(event) => {
+              enabled = event.currentTarget.checked;
+              onChanged();
+            }}
+          />
           <span>Use CSV for preview and printing</span>
         </label>
         <button class="btn import" onclick={importCsv}>Import CSV</button>
@@ -71,7 +81,16 @@
 
       <div class="body">
         <label for="csv-editor">CSV source</label>
-        <textarea id="csv-editor" bind:value={$csvData.data} spellcheck="false" oninput={() => (enabled = true)}></textarea>
+        <textarea
+          id="csv-editor"
+          value={$csvData.data}
+          spellcheck="false"
+          oninput={(event) => {
+            $csvData = { data: event.currentTarget.value };
+            enabled = true;
+            onChanged();
+          }}
+        ></textarea>
 
         <div class="section-title">Columns</div>
         <div class="columns">

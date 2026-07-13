@@ -8,6 +8,7 @@
   import ToolRail, { type ToolKind } from "$/components/ToolRail.svelte";
   import PropsPanel from "$/components/PropsPanel.svelte";
   import { FileUtils } from "$/utils/file_utils";
+  import { CanvasUtils } from "$/utils/canvas_utils";
   import {
     DEFAULT_LABEL_PROPS,
     OBJECT_DEFAULTS,
@@ -19,8 +20,8 @@
   import DataDialog from "$/components/DataDialog.svelte";
   import { LocalStoragePersistence } from "$/utils/persistence";
   import { UndoRedo } from "$/utils/undo_redo";
-  import { ExportedLabelTemplateSchema } from "$/types";
-  import type { ExportedLabelTemplate, LabelProps } from "$/types";
+  import { ExportedLabelTemplateSchema, LabelPropsSchema } from "$/types";
+  import type { EditorSession, ExportedLabelTemplate, LabelProps } from "$/types";
   import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
   import type { FabricJson } from "$/types";
   import { csvData } from "$/stores";
@@ -37,10 +38,90 @@
     printDirection: DEFAULT_LABEL_PROPS.printDirection,
     size: { ...DEFAULT_LABEL_PROPS.size },
   });
+  let documentTitle = $state("Untitled");
+  let dirty = $state(false);
+  let autosaveState = $state<"idle" | "saving" | "saved" | "error">("idle");
+  let batchEnabled = $state(false);
+  const batchRowCount = $derived(parseBatchCsv($csvData.data).rows.length);
 
   const DPMM = 8; // 203 dpi
+  const AUTOSAVE_DELAY_MS = 400;
 
   const undoRedo = new UndoRedo();
+  let autosaveReady = false;
+  let autosaveTimer: ReturnType<typeof setTimeout> | undefined;
+  let cleanFingerprint = "";
+
+  const hashFingerprint = (value: string): string => {
+    let hash = 14_695_981_039_346_656_037n;
+    for (let index = 0; index < value.length; index++) {
+      hash ^= BigInt(value.charCodeAt(index));
+      hash = BigInt.asUintN(64, hash * 1_099_511_628_211n);
+    }
+    return hash.toString(16).padStart(16, "0");
+  };
+
+  const documentFingerprint = (): string => {
+    if (!canvas) return "";
+    return hashFingerprint(
+      JSON.stringify({
+        canvas: CanvasUtils.serializeCanvas(canvas),
+        label: LabelPropsSchema.parse(labelProps),
+        batchEnabled,
+        csv: batchEnabled ? $csvData : undefined,
+      }),
+    );
+  };
+
+  const makeEditorSession = (): EditorSession | null => {
+    if (!canvas) return null;
+    return {
+      version: 1,
+      canvas: CanvasUtils.serializeCanvas(canvas),
+      label: labelProps,
+      title: documentTitle,
+      batchEnabled,
+      csv: batchEnabled ? $csvData : undefined,
+      dirty,
+    };
+  };
+
+  const flushAutosave = () => {
+    if (autosaveTimer !== undefined) {
+      clearTimeout(autosaveTimer);
+      autosaveTimer = undefined;
+    }
+    if (!autosaveReady) return;
+    const session = makeEditorSession();
+    if (!session) return;
+    try {
+      LocalStoragePersistence.saveEditorSession(session);
+      autosaveState = "saved";
+    } catch (error) {
+      autosaveState = "error";
+      console.error("Recovery save failed:", error);
+    }
+  };
+
+  const scheduleAutosave = () => {
+    if (!autosaveReady || !canvas) return;
+    if (autosaveTimer !== undefined) clearTimeout(autosaveTimer);
+    autosaveState = "saving";
+    autosaveTimer = setTimeout(flushAutosave, AUTOSAVE_DELAY_MS);
+  };
+
+  const documentChanged = () => {
+    if (!autosaveReady || !canvas) return;
+    dirty = documentFingerprint() !== cleanFingerprint;
+    scheduleAutosave();
+  };
+
+  const markDocumentClean = () => {
+    if (!canvas) return;
+    cleanFingerprint = documentFingerprint();
+    dirty = false;
+    scheduleAutosave();
+  };
 
   /** Resize the label (dimensions in millimetres). Undoable. */
   const applyLabelSize = (widthMm: number, heightMm: number) => {
@@ -73,7 +154,9 @@
 
   /** Snapshot the current canvas into undo history. No-op while paused (during restore). */
   const commit = () => {
-    if (canvas) undoRedo.push(canvas, labelProps);
+    if (!canvas) return;
+    undoRedo.push(canvas, labelProps);
+    documentChanged();
   };
 
   /** Prop-panel edits mutate objects programmatically (no fabric event), so commit explicitly. */
@@ -174,10 +257,64 @@
     commit();
   };
 
+  const groupSelection = () => {
+    if (!canvas) return;
+    const active = canvas.getActiveObject();
+    if (!(active instanceof fabric.ActiveSelection) || active.size() < 2) return;
+
+    const objects = [...active.getObjects()];
+    const stack = canvas.getObjects();
+    const insertAt = Math.min(...objects.map((object) => stack.indexOf(object)).filter((index) => index >= 0));
+    canvas.discardActiveObject();
+    canvas.remove(...objects);
+    const group = new fabric.Group(objects);
+    canvas.insertAt(Number.isFinite(insertAt) ? insertAt : canvas.size(), group);
+    canvas.setActiveObject(group);
+    selection = group;
+    refreshCanvas();
+    commit();
+  };
+
+  const ungroupSelection = () => {
+    if (!canvas) return;
+    const active = canvas.getActiveObject();
+    if (!(active instanceof fabric.Group) || active instanceof fabric.ActiveSelection) return;
+
+    const insertAt = Math.max(0, canvas.getObjects().indexOf(active));
+    canvas.discardActiveObject();
+    const objects = active.removeAll();
+    canvas.remove(active);
+    canvas.insertAt(insertAt, ...objects);
+    const nextSelection = new fabric.ActiveSelection(objects, { canvas });
+    canvas.setActiveObject(nextSelection);
+    selection = nextSelection;
+    refreshCanvas();
+    commit();
+  };
+
   const duplicateSelection = async () => {
     if (!canvas) return;
     const active = canvas.getActiveObject();
     if (!active) return;
+
+    if (active instanceof fabric.ActiveSelection) {
+      const clonedSelection = await active.clone() as fabric.ActiveSelection;
+      const clones = clonedSelection.removeAll();
+      clones.forEach((clone) => {
+        const position = clone.getXY();
+        clone.setXY(new fabric.Point(position.x + 10, position.y + 10));
+        clone.setCoords();
+      });
+      canvas.discardActiveObject();
+      canvas.add(...clones);
+      const nextSelection = new fabric.ActiveSelection(clones, { canvas });
+      canvas.setActiveObject(nextSelection);
+      selection = nextSelection;
+      refreshCanvas();
+      commit();
+      return;
+    }
+
     const clone = await active.clone();
     clone.set({ left: (clone.left ?? 0) + 10, top: (clone.top ?? 0) + 10 });
     canvas.add(clone);
@@ -264,45 +401,61 @@
   let printDialogOpen = $state(false);
   let libraryOpen = $state(false);
   let dataDialogOpen = $state(false);
-  let batchEnabled = $state(false);
-  const batchRowCount = $derived(parseBatchCsv($csvData.data).rows.length);
-
-  const getCanvasJson = (): FabricJson => canvas!.toJSON() as FabricJson;
+  const getCanvasJson = (): FabricJson => CanvasUtils.serializeCanvas(canvas!);
 
   const saveLabelToLibrary = (title: string, includeCsv: boolean) => {
     if (!canvas) return;
     const tpl = FileUtils.makeExportedLabel(canvas, labelProps, includeCsv);
-    if (title) tpl.title = title;
+    const nextTitle = title || (documentTitle !== "Untitled" ? documentTitle : "");
+    if (nextTitle) tpl.title = nextTitle;
     const existing = LocalStoragePersistence.loadLabels();
-    LocalStoragePersistence.saveLabels([...existing, tpl]);
+    const result = LocalStoragePersistence.saveLabels([...existing, tpl]);
+    if (result.zodErrors.length > 0 || result.otherErrors.length > 0) {
+      throw new Error("The label could not be saved to the local library.");
+    }
+    documentTitle = tpl.title || "Untitled";
+    markDocumentClean();
   };
 
   const loadTemplate = async (tpl: ExportedLabelTemplate) => {
     if (!canvas) return;
     undoRedo.paused = true;
-    canvas.discardActiveObject();
-    selection = null;
-    if (tpl.label?.size) {
-      labelProps = { ...tpl.label, size: { ...tpl.label.size } };
-      canvas.setLabelProps(labelProps);
-      canvas.setLabelSize(labelProps.size.width, labelProps.size.height);
+    try {
+      canvas.discardActiveObject();
+      selection = null;
+      if (tpl.label?.size) {
+        labelProps = { ...tpl.label, size: { ...tpl.label.size } };
+        canvas.setLabelProps(labelProps);
+        canvas.setLabelSize(labelProps.size.width, labelProps.size.height);
+      }
+      if (tpl.csv) {
+        $csvData = tpl.csv;
+        batchEnabled = true;
+      } else {
+        batchEnabled = false;
+      }
+      await FileUtils.loadCanvasState(canvas, tpl.canvas);
+      canvas.renderAll();
+      rev++;
+    } finally {
+      undoRedo.paused = false;
     }
-    if (tpl.csv) {
-      $csvData = tpl.csv;
-      batchEnabled = true;
-    } else {
-      batchEnabled = false;
-    }
-    await FileUtils.loadCanvasState(canvas, tpl.canvas);
-    canvas.renderAll();
-    rev++;
-    undoRedo.paused = false;
-    commit();
+    undoRedo.push(canvas, labelProps);
+    documentTitle = tpl.title?.trim() || "Untitled";
+    markDocumentClean();
   };
 
   const exportLabelJson = (includeCsv: boolean) => {
     if (!canvas) return;
-    FileUtils.saveLabelAsJson(FileUtils.makeExportedLabel(canvas, labelProps, includeCsv));
+    const tpl = FileUtils.makeExportedLabel(canvas, labelProps, includeCsv);
+    if (documentTitle !== "Untitled") tpl.title = documentTitle;
+    FileUtils.saveLabelAsJson(tpl);
+    markDocumentClean();
+  };
+
+  const exportLabelPng = () => {
+    if (!canvas) return;
+    FileUtils.saveCanvasAsPng(canvas, documentTitle);
   };
 
   const importLabelJson = async () => {
@@ -317,6 +470,7 @@
   };
 
   onMount(() => {
+    let disposed = false;
     canvas = new CustomCanvas(canvasEl, {
       width: labelProps.size.width,
       height: labelProps.size.height,
@@ -326,8 +480,9 @@
       zoomPercent = Math.round(zoom * 100);
     };
 
-    canvas.on("selection:created", (e) => (selection = e.selected?.[0] ?? null));
-    canvas.on("selection:updated", (e) => (selection = e.selected?.[0] ?? null));
+    const syncSelection = () => (selection = canvas?.getActiveObject() ?? null);
+    canvas.on("selection:created", syncSelection);
+    canvas.on("selection:updated", syncSelection);
     canvas.on("selection:cleared", () => (selection = null));
     // Fires for transforms (move/scale/rotate) and inline text edits that changed content.
     canvas.on("object:modified", () => {
@@ -365,27 +520,82 @@
       }
       rev++;
       undoRedo.paused = false;
+      documentChanged();
     };
 
-    // OBJECT_DEFAULTS_TEXT uses center origin - left/top are the CENTER point
-    const text = new TextboxExt("LabelDesk", {
-      ...OBJECT_DEFAULTS_TEXT,
-      left: labelProps.size.width / 2,
-      top: labelProps.size.height / 2,
-      fontSize: 32,
-    });
-    canvas.add(text);
-    canvas.virtualZoom(2);
-    canvas.renderAll();
+    const addStarterLabel = () => {
+      if (!canvas) return;
+      // OBJECT_DEFAULTS_TEXT uses center origin, so left/top are the center point.
+      const text = new TextboxExt("LabelDesk", {
+        ...OBJECT_DEFAULTS_TEXT,
+        left: labelProps.size.width / 2,
+        top: labelProps.size.height / 2,
+        fontSize: 32,
+      });
+      canvas.add(text);
+    };
 
-    // Baseline snapshot (index 0) so the first edit is undoable back to the empty label.
-    commit();
+    const initializeDocument = async () => {
+      if (!canvas) return;
+      undoRedo.paused = true;
+      let restoredSession: EditorSession | null = null;
+
+      try {
+        restoredSession = LocalStoragePersistence.loadEditorSession();
+        if (restoredSession) {
+          labelProps = {
+            ...restoredSession.label,
+            size: { ...restoredSession.label.size },
+          };
+          canvas.setLabelProps(labelProps);
+          canvas.setLabelSize(labelProps.size.width, labelProps.size.height);
+          if (restoredSession.csv) $csvData = restoredSession.csv;
+          batchEnabled = restoredSession.batchEnabled;
+          documentTitle = restoredSession.title.trim() || "Untitled";
+          await FileUtils.loadCanvasState(canvas, restoredSession.canvas);
+        } else {
+          addStarterLabel();
+        }
+      } catch (error) {
+        console.error("Recovery restore failed:", error);
+        LocalStoragePersistence.clearEditorSession();
+        canvas.clear();
+        labelProps = {
+          printDirection: DEFAULT_LABEL_PROPS.printDirection,
+          size: { ...DEFAULT_LABEL_PROPS.size },
+        };
+        canvas.setLabelProps(labelProps);
+        canvas.setLabelSize(labelProps.size.width, labelProps.size.height);
+        documentTitle = "Untitled";
+        batchEnabled = false;
+        restoredSession = null;
+        addStarterLabel();
+      }
+
+      if (disposed || !canvas) return;
+      canvas.virtualZoom(2);
+      canvas.renderAll();
+      undoRedo.paused = false;
+      undoRedo.push(canvas, labelProps);
+
+      cleanFingerprint = restoredSession?.dirty ? "recovered-dirty" : documentFingerprint();
+      autosaveReady = true;
+      dirty = restoredSession?.dirty ?? false;
+      scheduleAutosave();
+    };
+
+    void initializeDocument();
 
     if (import.meta.env.DEV) {
       (window as unknown as Record<string, unknown>).__canvas = canvas;
     }
 
-    return () => canvas?.dispose();
+    return () => {
+      disposed = true;
+      flushAutosave();
+      autosaveReady = false;
+      canvas?.dispose();
+    };
   });
 
   const zoomIn = () => canvas?.virtualZoomIn();
@@ -400,7 +610,7 @@
   };
 </script>
 
-<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} />
+<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} onbeforeunload={flushAutosave} />
 
 <div class="app">
   <header class="topbar">
@@ -418,7 +628,8 @@
       </button>
     </div>
     <div class="doc-chip">
-      Untitled · {(labelProps.size.width / DPMM).toFixed(1)} × {(labelProps.size.height / DPMM).toFixed(1)} mm · 203 dpi
+      <span class:dirty>{documentTitle}{dirty ? " *" : ""}</span>
+      · {(labelProps.size.width / DPMM).toFixed(1)} × {(labelProps.size.height / DPMM).toFixed(1)} mm · 203 dpi
     </div>
     <button
       class="chip"
@@ -455,13 +666,16 @@
     revision={rev}
     {getCanvasJson}
     onAddPlaceholder={addPlaceholder}
+    onChanged={documentChanged}
   />
   <LibraryDialog
     bind:open={libraryOpen}
     batchAvailable={batchEnabled}
+    currentTitle={documentTitle}
     onSave={saveLabelToLibrary}
     onLoad={loadTemplate}
     onExport={exportLabelJson}
+    onExportPng={exportLabelPng}
     onImport={importLabelJson}
   />
 
@@ -486,6 +700,8 @@
       dpmm={DPMM}
       onChanged={onPropChanged}
       onDelete={deleteSelection}
+      onGroup={groupSelection}
+      onUngroup={ungroupSelection}
       onLabelSize={applyLabelSize}
       onLabelProps={updateLabelProps}
     />
@@ -495,6 +711,15 @@
     <button class="snap-toggle" class:on={gridSnap} onclick={toggleGridSnap}>
       GRID 5 PX · SNAP {gridSnap ? "ON" : "OFF"}
     </button>
+    <span class="autosave" class:error={autosaveState === "error"}>
+      {autosaveState === "saving"
+        ? "RECOVERY SAVING"
+        : autosaveState === "saved"
+          ? "RECOVERY SAVED"
+          : autosaveState === "error"
+            ? "RECOVERY FAILED"
+            : "RECOVERY IDLE"}
+    </span>
     <span class="right">NO PRINTER · 203 DPI</span>
   </footer>
 </div>
@@ -597,6 +822,11 @@
     border-radius: var(--r-s);
     padding: 6px 12px;
     background: var(--raised);
+  }
+
+  .doc-chip .dirty {
+    color: var(--red-2);
+    font-weight: 600;
   }
 
   .chip {
@@ -751,6 +981,11 @@
 
   .status .right {
     margin-left: auto;
+  }
+
+  .autosave.error {
+    color: var(--red-2);
+    font-weight: 600;
   }
 
   .snap-toggle {

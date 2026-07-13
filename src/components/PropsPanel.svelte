@@ -5,6 +5,12 @@
   import QRCode from "$/fabric-object/qrcode";
   import type { LabelProps } from "$/types";
   import { DEFAULT_LABEL_PRESETS, FONT_FAMILIES } from "$/defaults";
+  import {
+    alignActiveSelection,
+    distributeActiveSelection,
+    type SelectionAlignment,
+    type SelectionDistribution,
+  } from "$/utils/selection_utils";
 
   interface Props {
     selection: fabric.FabricObject | null;
@@ -14,14 +20,26 @@
     dpmm: number;
     onChanged: () => void;
     onDelete: () => void;
+    onGroup: () => void;
+    onUngroup: () => void;
     /** apply a new label size (millimetres) */
     onLabelSize: (widthMm: number, heightMm: number) => void;
     /** update non-dimension label properties (shape, split, mirror) */
     onLabelProps: (patch: Partial<LabelProps>) => void;
   }
 
-  let { selection, rev, labelProps, dpmm, onChanged, onDelete, onLabelSize, onLabelProps }: Props =
-    $props();
+  let {
+    selection,
+    rev,
+    labelProps,
+    dpmm,
+    onChanged,
+    onDelete,
+    onGroup,
+    onUngroup,
+    onLabelSize,
+    onLabelProps,
+  }: Props = $props();
 
   const px2mm = (px: number) => Math.round((px / dpmm) * 10) / 10;
   const mm2px = (mm: number) => mm * dpmm;
@@ -47,6 +65,8 @@
   ] as const;
 
   const objectTitle = (obj: fabric.FabricObject): string => {
+    if (obj instanceof fabric.ActiveSelection) return `${obj.size()} objects`;
+    if (obj instanceof fabric.Group) return "Group";
     if (obj instanceof TextboxExt) return "Text";
     if (obj instanceof Barcode) return "Barcode";
     if (obj instanceof QRCode) return "QR code";
@@ -56,6 +76,17 @@
     if (obj instanceof fabric.Rect) return "Rectangle";
     return "Object";
   };
+
+  const activeSelection = () => selection instanceof fabric.ActiveSelection ? selection : null;
+  const selectedTextObjects = () => {
+    const active = activeSelection();
+    if (!active) return [];
+    const objects = active.getObjects();
+    return objects.every((object) => object instanceof TextboxExt) ? objects as TextboxExt[] : [];
+  };
+
+  const commonValue = <T,>(values: T[]): T | undefined =>
+    values.length > 0 && values.every((value) => value === values[0]) ? values[0] : undefined;
 
   const setNum = (prop: "left" | "top" | "angle", value: string, mm: boolean) => {
     if (!selection) return;
@@ -94,6 +125,31 @@
     onChanged();
   };
 
+  const alignSelection = (alignment: SelectionAlignment) => {
+    const active = activeSelection();
+    if (!active) return;
+    alignActiveSelection(active, alignment);
+    onChanged();
+  };
+
+  const distributeSelection = (distribution: SelectionDistribution) => {
+    const active = activeSelection();
+    if (!active) return;
+    distributeActiveSelection(active, distribution);
+    onChanged();
+  };
+
+  const setBulkTextProp = (prop: keyof TextboxExt, value: unknown) => {
+    const objects = selectedTextObjects();
+    if (objects.length === 0) return;
+    objects.forEach((object) => {
+      object.set(prop as keyof fabric.FabricObject, value);
+      object.setCoords();
+    });
+    activeSelection()?.triggerLayout();
+    onChanged();
+  };
+
   /** Set the text box width to (nearly) the label width so long text wraps to lines. */
   const fitTextWidth = () => {
     if (!selection) return;
@@ -106,7 +162,10 @@
 
   /** Objects whose scaled size can be typed directly (vector shapes, not text/image/codes). */
   const sizeEditable = (obj: fabric.FabricObject) =>
-    !(obj instanceof TextboxExt || obj instanceof fabric.FabricImage || obj instanceof Barcode || obj instanceof QRCode);
+    !(
+      obj instanceof fabric.Group || obj instanceof TextboxExt || obj instanceof fabric.FabricImage ||
+      obj instanceof Barcode || obj instanceof QRCode
+    );
 
   /** Set the scaled width/height (mm) of a vector shape via its scale factor.
    *  getScaledWidth/Height include the stroke, so back that out for an exact round-trip. */
@@ -145,7 +204,7 @@
 <div class="props">
   <div class="p-head">
     <b>{selection ? objectTitle(selection) : "Label"}</b>
-    <span>{selection ? "SELECTED" : "NO SELECTION"}</span>
+    <span>{selection instanceof fabric.ActiveSelection ? `${selection.size()} SELECTED` : selection ? "SELECTED" : "NO SELECTION"}</span>
   </div>
 
   {#if selection}
@@ -187,15 +246,80 @@
 
       <div class="sec">
         <h3>Arrange</h3>
-        <div class="arrange">
-          <button onclick={centerH} title="Center horizontally">⭰ Center H</button>
-          <button onclick={centerV} title="Center vertically">⭱ Center V</button>
-          <button onclick={() => arrange("front")} title="Bring to front">⬆ To front</button>
-          <button onclick={() => arrange("back")} title="Send to back">⬇ To back</button>
-        </div>
+        {#if selection instanceof fabric.ActiveSelection}
+          <div class="arrange align-grid">
+            <button onclick={() => alignSelection("left")}>Left</button>
+            <button onclick={() => alignSelection("center-h")}>Center H</button>
+            <button onclick={() => alignSelection("right")}>Right</button>
+            <button onclick={() => alignSelection("top")}>Top</button>
+            <button onclick={() => alignSelection("center-v")}>Center V</button>
+            <button onclick={() => alignSelection("bottom")}>Bottom</button>
+          </div>
+          <h3 class="subhead">Distribute</h3>
+          <div class="arrange">
+            <button onclick={() => distributeSelection("horizontal")} disabled={selection.size() < 3}>H gaps</button>
+            <button onclick={() => distributeSelection("vertical")} disabled={selection.size() < 3}>V gaps</button>
+          </div>
+          <h3 class="subhead">Selection</h3>
+          <div class="arrange">
+            <button onclick={centerH} title="Center selection horizontally on label">⭰ Label H</button>
+            <button onclick={centerV} title="Center selection vertically on label">⭱ Label V</button>
+            <button onclick={() => arrange("front")} title="Bring selection to front">⬆ To front</button>
+            <button onclick={() => arrange("back")} title="Send selection to back">⬇ To back</button>
+          </div>
+          <button class="fit-btn group-btn" onclick={onGroup}>Group selection</button>
+        {:else}
+          <div class="arrange">
+            <button onclick={centerH} title="Center horizontally">⭰ Center H</button>
+            <button onclick={centerV} title="Center vertically">⭱ Center V</button>
+            <button onclick={() => arrange("front")} title="Bring to front">⬆ To front</button>
+            <button onclick={() => arrange("back")} title="Send to back">⬇ To back</button>
+          </div>
+          {#if selection instanceof fabric.Group}
+            <button class="fit-btn group-btn" onclick={onUngroup}>Ungroup</button>
+          {/if}
+        {/if}
       </div>
 
-      {#if selection instanceof TextboxExt}
+      {#if selection instanceof fabric.ActiveSelection && selectedTextObjects().length > 0}
+        {@const textObjects = selectedTextObjects()}
+        {@const commonFont = commonValue(textObjects.map((object) => object.fontFamily))}
+        {@const commonSize = commonValue(textObjects.map((object) => object.fontSize))}
+        {@const commonWeight = commonValue(textObjects.map((object) => object.fontWeight))}
+        {@const commonAlign = commonValue(textObjects.map((object) => object.textAlign))}
+        <div class="sec">
+          <h3>Bulk text</h3>
+          <div class="field" style="margin-bottom:8px">
+            <label for="pp-bulk-ff">Font</label>
+            <select id="pp-bulk-ff" class="v" value={commonFont ?? ""}
+              onchange={(e) => setBulkTextProp("fontFamily", e.currentTarget.value)}>
+              {#if commonFont === undefined}<option value="" disabled>Mixed</option>{/if}
+              {#each FONT_FAMILIES as f (f.value)}
+                <option value={f.value}>{f.label}</option>
+              {/each}
+            </select>
+          </div>
+          <div class="grid2" style="margin-bottom:8px">
+            <div class="field">
+              <label for="pp-bulk-fs">Size · px</label>
+              <input id="pp-bulk-fs" class="v" type="number" min="4" value={commonSize ?? ""} placeholder="Mixed"
+                onchange={(e) => setBulkTextProp("fontSize", parseFloat(e.currentTarget.value) || 12)} />
+            </div>
+            <div class="field">
+              <label for="pp-bulk-fw">Bold</label>
+              <button id="pp-bulk-fw" class="v toggle" class:on={commonWeight === "bold"}
+                onclick={() => setBulkTextProp("fontWeight", commonWeight === "bold" ? "normal" : "bold")}>
+                {commonWeight === undefined ? "MIXED" : commonWeight === "bold" ? "ON" : "OFF"}
+              </button>
+            </div>
+          </div>
+          <div class="seg">
+            {#each ["left", "center", "right"] as align (align)}
+              <button class:on={commonAlign === align} onclick={() => setBulkTextProp("textAlign", align)}>{align}</button>
+            {/each}
+          </div>
+        </div>
+      {:else if selection instanceof TextboxExt}
         <div class="sec">
           <h3>Text</h3>
           <div class="field" style="margin-bottom:8px">
@@ -528,6 +652,18 @@
     gap: 6px;
   }
 
+  .arrange.align-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+
+  .sec h3.subhead {
+    margin-top: 12px;
+  }
+
+  .group-btn {
+    margin-top: 8px;
+  }
+
   .arrange button {
     border: 1.5px solid var(--line-2);
     border-radius: 4px;
@@ -543,6 +679,13 @@
   .arrange button:hover {
     border-color: var(--ink);
     color: var(--ink);
+  }
+
+  .arrange button:disabled {
+    opacity: 0.4;
+    cursor: default;
+    border-color: var(--line-2);
+    color: var(--ink-3);
   }
 
   .presets {

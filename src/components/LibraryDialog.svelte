@@ -6,13 +6,24 @@
   interface Props {
     open: boolean;
     batchAvailable: boolean;
+    currentTitle: string;
     onSave: (title: string, includeCsv: boolean) => void;
     onLoad: (template: ExportedLabelTemplate) => void;
     onExport: (includeCsv: boolean) => void;
+    onExportPng: () => void;
     onImport: () => void;
   }
 
-  let { open = $bindable(), batchAvailable, onSave, onLoad, onExport, onImport }: Props = $props();
+  let {
+    open = $bindable(),
+    batchAvailable,
+    currentTitle,
+    onSave,
+    onLoad,
+    onExport,
+    onExportPng,
+    onImport,
+  }: Props = $props();
 
   let labels = $state<ExportedLabelTemplate[]>([]);
   let title = $state("");
@@ -22,6 +33,7 @@
   $effect(() => {
     if (open) {
       includeCsv = false;
+      title = currentTitle === "Untitled" ? "" : currentTitle;
       refresh();
     }
   });
@@ -95,6 +107,7 @@
 
       <div class="io-row">
         <button class="btn io" onclick={() => onExport(batchAvailable && includeCsv)}>Export JSON</button>
+        <button class="btn io" onclick={onExportPng}>Export PNG</button>
         <button class="btn io" onclick={onImport}>Import JSON</button>
       </div>
 

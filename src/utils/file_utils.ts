@@ -134,7 +134,7 @@ export class FileUtils {
     });
 
     const tpl: ExportedLabelTemplate = {
-      canvas: canvas.toJSON(),
+      canvas: CanvasUtils.serializeCanvas(canvas),
       label: labelProps,
       thumbnailBase64,
       timestamp: FileUtils.timestamp(),
@@ -163,7 +163,7 @@ export class FileUtils {
   }
 
   /** Convert canvas to PNG and download it */
-  static saveCanvasAsPng(canvas: fabric.Canvas) {
+  static saveCanvasAsPng(canvas: fabric.Canvas, title?: string) {
     const timestamp = FileUtils.timestamp();
 
     const url = canvas.toDataURL({
@@ -175,7 +175,8 @@ export class FileUtils {
       multiplier: 1,
     });
 
-    FileUtils.downloadBase64(`label_${timestamp}.png`, "image/png", url.split("base64,")[1]);
+    const filename = title && title !== "Untitled" ? `${title}.png` : `label_${timestamp}.png`;
+    FileUtils.downloadBase64(filename, "image/png", url.split("base64,")[1]);
   }
 
   /** Convert label template to JSON and download it */

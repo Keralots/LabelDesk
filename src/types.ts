@@ -89,6 +89,16 @@ export const ExportedLabelTemplateSchema = z.object({
   csv: CsvParamsSchema.optional(),
 });
 
+export const EditorSessionSchema = z.object({
+  version: z.literal(1),
+  canvas: FabricJsonSchema,
+  label: LabelPropsSchema,
+  title: z.string(),
+  batchEnabled: z.boolean(),
+  csv: CsvParamsSchema.optional(),
+  dirty: z.boolean(),
+});
+
 const [firstTask, ...otherTasks] = printTaskNames;
 
 export const PreviewPropsOffsetSchema = z.object({
@@ -145,6 +155,7 @@ export type LabelProps = z.infer<typeof LabelPropsSchema>;
 export type LabelPreset = z.infer<typeof LabelPresetSchema>;
 export type FabricJson = z.infer<typeof FabricJsonSchema>;
 export type ExportedLabelTemplate = z.infer<typeof ExportedLabelTemplateSchema>;
+export type EditorSession = z.infer<typeof EditorSessionSchema>;
 export type PreviewPropsOffset = z.infer<typeof PreviewPropsOffsetSchema>;
 export type PreviewProps = z.infer<typeof PreviewPropsSchema>;
 export type AutomationProps = z.infer<typeof AutomationPropsSchema>;

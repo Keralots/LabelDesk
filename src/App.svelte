@@ -15,6 +15,9 @@
     OBJECT_DEFAULTS_VECTOR,
   } from "$/defaults";
   import PrintDialog from "$/components/PrintDialog.svelte";
+  import LibraryDialog from "$/components/LibraryDialog.svelte";
+  import { LocalStoragePersistence } from "$/utils/persistence";
+  import type { ExportedLabelTemplate } from "$/types";
   import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
   import type { FabricJson } from "$/types";
 
@@ -110,8 +113,26 @@
   };
 
   let printDialogOpen = $state(false);
+  let libraryOpen = $state(false);
 
   const getCanvasJson = (): FabricJson => canvas!.toJSON() as FabricJson;
+
+  const saveLabelToLibrary = (title: string) => {
+    if (!canvas) return;
+    const tpl = FileUtils.makeExportedLabel(canvas, DEFAULT_LABEL_PROPS, false);
+    if (title) tpl.title = title;
+    const existing = LocalStoragePersistence.loadLabels();
+    LocalStoragePersistence.saveLabels([...existing, tpl]);
+  };
+
+  const loadLabelFromLibrary = async (tpl: ExportedLabelTemplate) => {
+    if (!canvas) return;
+    canvas.discardActiveObject();
+    selection = null;
+    await FileUtils.loadCanvasState(canvas, tpl.canvas);
+    canvas.renderAll();
+    rev++;
+  };
 
   onMount(() => {
     canvas = new CustomCanvas(canvasEl, {
@@ -155,6 +176,7 @@
 <div class="app">
   <header class="topbar">
     <div class="logo">LabelDesk<i></i></div>
+    <button class="menu-btn" onclick={() => (libraryOpen = true)}>Library</button>
     <div class="doc-chip">Untitled · 30.0 × 12.0 mm · 203 dpi</div>
     <button
       class="chip"
@@ -178,6 +200,7 @@
   </header>
 
   <PrintDialog bind:open={printDialogOpen} {getCanvasJson} labelProps={DEFAULT_LABEL_PROPS} dpmm={DPMM} />
+  <LibraryDialog bind:open={libraryOpen} onSave={saveLabelToLibrary} onLoad={loadLabelFromLibrary} />
 
   <div class="main">
     <ToolRail onAdd={addObject} />
@@ -243,6 +266,23 @@
     background: var(--red);
     display: inline-block;
     margin-left: 4px;
+  }
+
+  .menu-btn {
+    border: 0;
+    background: transparent;
+    font-family: var(--font-ui);
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--ink-2);
+    padding: 6px 10px;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+
+  .menu-btn:hover {
+    background: var(--paper-2);
+    color: var(--ink);
   }
 
   .doc-chip {

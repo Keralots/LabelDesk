@@ -93,6 +93,16 @@
     else selection.canvas.sendObjectToBack(selection);
     onChanged();
   };
+
+  /** Set the text box width to (nearly) the label width so long text wraps to lines. */
+  const fitTextWidth = () => {
+    if (!selection) return;
+    const w = Math.max(labelProps.size.width - 8, 8);
+    selection.set("width", w);
+    selection.canvas?.centerObjectH(selection);
+    selection.setCoords();
+    onChanged();
+  };
 </script>
 
 <div class="props">
@@ -170,6 +180,19 @@
                 {align}
               </button>
             {/each}
+          </div>
+          <div class="grid2" style="margin-top:8px">
+            <div class="field">
+              <label for="pp-af">Auto-fit font</label>
+              <button id="pp-af" class="v toggle" class:on={(selection as TextboxExt).fontAutoSize}
+                onclick={() => setObjProp("fontAutoSize", !(selection as TextboxExt).fontAutoSize)}>
+                {(selection as TextboxExt).fontAutoSize ? "ON" : "OFF"}
+              </button>
+            </div>
+            <div class="field">
+              <label for="pp-fw2">Wrap width</label>
+              <button id="pp-fw2" class="v toggle" onclick={fitTextWidth}>Fit label</button>
+            </div>
           </div>
         </div>
       {:else if selection instanceof Barcode}

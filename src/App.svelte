@@ -138,6 +138,37 @@
     commit();
   };
 
+  const duplicateSelection = async () => {
+    if (!canvas) return;
+    const active = canvas.getActiveObject();
+    if (!active) return;
+    const clone = await active.clone();
+    clone.set({ left: (clone.left ?? 0) + 10, top: (clone.top ?? 0) + 10 });
+    canvas.add(clone);
+    canvas.setActiveObject(clone);
+    refreshCanvas();
+    commit();
+  };
+
+  // Arrow-key nudge. Moves are coalesced into one undo step per key press (see onKeyup).
+  let nudgePending = false;
+  const nudge = (dx: number, dy: number) => {
+    if (!canvas) return;
+    const active = canvas.getActiveObject();
+    if (!active) return;
+    active.set({ left: (active.left ?? 0) + dx, top: (active.top ?? 0) + dy });
+    active.setCoords();
+    canvas.renderAll();
+    rev++;
+    nudgePending = true;
+  };
+  const onKeyup = () => {
+    if (nudgePending) {
+      nudgePending = false;
+      commit();
+    }
+  };
+
   const onKeydown = (e: KeyboardEvent) => {
     const target = e.target as HTMLElement;
     const inField = target.tagName === "INPUT" || target.tagName === "TEXTAREA";
@@ -155,6 +186,22 @@
       if (inField || editingText) return;
       e.preventDefault();
       redo();
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === "d" || e.key === "D")) {
+      if (inField || editingText || !active) return;
+      e.preventDefault();
+      duplicateSelection();
+      return;
+    }
+
+    if (!inField && !editingText && active && e.key.startsWith("Arrow")) {
+      e.preventDefault();
+      const step = e.shiftKey ? 10 : 1;
+      if (e.key === "ArrowLeft") nudge(-step, 0);
+      else if (e.key === "ArrowRight") nudge(step, 0);
+      else if (e.key === "ArrowUp") nudge(0, -step);
+      else if (e.key === "ArrowDown") nudge(0, step);
       return;
     }
 
@@ -291,7 +338,7 @@
   const zoomOut = () => canvas?.virtualZoomOut();
 </script>
 
-<svelte:window onkeydown={onKeydown} />
+<svelte:window onkeydown={onKeydown} onkeyup={onKeyup} />
 
 <div class="app">
   <header class="topbar">

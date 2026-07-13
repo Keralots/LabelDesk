@@ -117,14 +117,25 @@
         { ...OBJECT_DEFAULTS_VECTOR },
       );
     } else if (kind === "image") {
+      // Only raster formats that fabric's FabricImage.fromURL can actually decode.
+      const SUPPORTED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/bmp", "image/webp"];
       try {
-        const fileList = await FileUtils.pickFileAsync("*", false);
-        const dataUrl = await FileUtils.blobToDataUrl(fileList[0]);
+        const fileList = await FileUtils.pickFileAsync(SUPPORTED_IMAGE_TYPES.join(","), false);
+        const file = fileList[0];
+        if (!file || !SUPPORTED_IMAGE_TYPES.includes(file.type)) {
+          console.error("Unsupported image type:", file?.type || "(none)");
+          return;
+        }
+        const dataUrl = await FileUtils.blobToDataUrl(file);
         const img = await fabric.FabricImage.fromURL(dataUrl);
+        if (!img.width || !img.height) {
+          console.error("Image failed to decode:", file.name);
+          return;
+        }
         // fit into the label, leaving a small margin
         const maxW = labelProps.size.width * 0.8;
         const maxH = labelProps.size.height * 0.8;
-        const scale = Math.min(maxW / (img.width ?? 1), maxH / (img.height ?? 1), 1);
+        const scale = Math.min(maxW / img.width, maxH / img.height, 1);
         img.scale(scale);
         obj = img;
       } catch (e) {

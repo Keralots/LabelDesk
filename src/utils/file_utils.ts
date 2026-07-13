@@ -198,7 +198,11 @@ export class FileUtils {
       input.multiple = multiple;
 
       if (acceptExtension !== "*") {
-        input.accept = `.${acceptExtension}`;
+        // Pass MIME types, comma lists, or explicit ".ext" through verbatim;
+        // otherwise treat a bare word as a file extension.
+        const looksLikeAcceptValue =
+          acceptExtension.includes("/") || acceptExtension.includes(",") || acceptExtension.startsWith(".");
+        input.accept = looksLikeAcceptValue ? acceptExtension : `.${acceptExtension}`;
       }
 
       input.onchange = (e: Event) => {

@@ -28,6 +28,36 @@ export class CanvasUtils {
     }
   }
 
+  /**
+   * Canvas text does not trigger lazy CSS @font-face loading, so a face used
+   * only on the canvas (and not in the page DOM) may never load and its text
+   * silently renders with a generic fallback. Explicitly load every family
+   * the canvas uses, then re-measure text with the real metrics.
+   */
+  static async ensureCanvasFonts(canvas: fabric.Canvas): Promise<void> {
+    const families = new Set<string>();
+    const collect = (object: fabric.FabricObject) => {
+      if (object instanceof fabric.Group) object.getObjects().forEach(collect);
+      const family = (object as { fontFamily?: unknown }).fontFamily;
+      if (typeof family === "string" && family.trim()) families.add(family.trim());
+    };
+    canvas.getObjects().forEach(collect);
+    if (families.size === 0) return;
+
+    const requests: Promise<unknown>[] = [];
+    families.forEach((family) => {
+      // Load the regular and bold faces; static font packages register
+      // each weight as a separate @font-face.
+      const quoted = JSON.stringify(family);
+      requests.push(document.fonts.load(`16px ${quoted}`));
+      requests.push(document.fonts.load(`bold 16px ${quoted}`));
+    });
+    await Promise.allSettled(requests);
+
+    if ((canvas as { disposed?: boolean }).disposed) return;
+    CanvasUtils.refreshFontMetrics(canvas);
+  }
+
   /** Recalculate cached text metrics after a web font is added or removed. */
   static refreshFontMetrics(canvas: fabric.Canvas): void {
     const refresh = (object: fabric.FabricObject) => {

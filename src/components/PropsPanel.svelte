@@ -14,6 +14,7 @@
   } from "$/utils/selection_utils";
   import { insetBounds } from "$/utils/editor_layout";
   import { applyCropInsets, readCropInsets, type CropInsets } from "$/utils/image_edit";
+  import { CanvasUtils } from "$/utils/canvas_utils";
 
   interface Props {
     selection: fabric.FabricObject | null;
@@ -125,6 +126,10 @@
     if (!selection) return;
     selection.set(prop as keyof fabric.FabricObject, value);
     selection.setCoords();
+    // A newly picked family may be a lazily loaded web font.
+    if (prop === "fontFamily" && selection.canvas) {
+      void CanvasUtils.ensureCanvasFonts(selection.canvas as fabric.Canvas);
+    }
     onChanged();
   };
 
@@ -167,6 +172,10 @@
       object.setCoords();
     });
     activeSelection()?.triggerLayout();
+    // A newly picked family may be a lazily loaded web font.
+    if (prop === "fontFamily" && objects[0].canvas) {
+      void CanvasUtils.ensureCanvasFonts(objects[0].canvas as fabric.Canvas);
+    }
     onChanged();
   };
 

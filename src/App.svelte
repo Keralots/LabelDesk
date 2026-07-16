@@ -14,6 +14,7 @@
     OBJECT_DEFAULTS,
     OBJECT_DEFAULTS_TEXT,
     OBJECT_DEFAULTS_VECTOR,
+    OBJECT_SIZE_DEFAULTS,
   } from "$/defaults";
   import PrintDialog from "$/components/PrintDialog.svelte";
   import LibraryDialog from "$/components/LibraryDialog.svelte";
@@ -246,7 +247,16 @@
     if (kind === "text") {
       obj = new TextboxExt("Text", { ...OBJECT_DEFAULTS_TEXT, fontSize: 24 });
     } else if (kind === "barcode") {
-      obj = new Barcode({ ...OBJECT_DEFAULTS, text: "123456789", encoding: "CODE128B", scaleFactor: 2 });
+      // Barcode computes its own width from the encoded content, but the bar
+      // height must be given explicitly; without it the object is created
+      // near-zero high and scaling handles produce absurd scale factors.
+      obj = new Barcode({
+        ...OBJECT_DEFAULTS,
+        text: "123456789",
+        encoding: "CODE128B",
+        scaleFactor: 2,
+        height: OBJECT_SIZE_DEFAULTS.height,
+      });
     } else if (kind === "qrcode") {
       obj = new QRCode({ ...OBJECT_DEFAULTS, text: "https://example.com", size: 60 });
     } else if (kind === "rect") {
@@ -705,6 +715,7 @@
       }
       await FileUtils.loadCanvasState(canvas, tpl.canvas);
       canvas.renderAll();
+      void CanvasUtils.ensureCanvasFonts(canvas);
       rev++;
     } finally {
       undoRedo.paused = false;
@@ -850,6 +861,7 @@
       canvas.setSafeAreaVisible(safeAreaVisible);
       canvas.setSmartSnap(smartSnap);
       canvas.renderAll();
+      void CanvasUtils.ensureCanvasFonts(canvas);
       rev++;
       undoRedo.paused = false;
       undoRedo.push(canvas, labelProps);

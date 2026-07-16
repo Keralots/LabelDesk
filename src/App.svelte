@@ -23,6 +23,7 @@
   import LayersPanel from "$/components/LayersPanel.svelte";
   import CanvasContextMenu from "$/components/CanvasContextMenu.svelte";
   import ShortcutsDialog from "$/components/ShortcutsDialog.svelte";
+  import AboutDialog from "$/components/AboutDialog.svelte";
   import { LocalStoragePersistence } from "$/utils/persistence";
   import { UndoRedo } from "$/utils/undo_redo";
   import { ExportedLabelTemplateSchema, LabelPropsSchema } from "$/types";
@@ -63,6 +64,7 @@
   let batchEnabled = $state(false);
   let layersOpen = $state(false);
   let shortcutsOpen = $state(false);
+  let aboutOpen = $state(false);
   let safeAreaVisible = $state(true);
   let smartSnap = $state(true);
   let contextMenu = $state({ open: false, x: 0, y: 0 });
@@ -557,6 +559,10 @@
       shortcutsOpen = false;
       return;
     }
+    if (e.key === "Escape" && aboutOpen) {
+      aboutOpen = false;
+      return;
+    }
 
     if (!inField && !editingText && !printDialogOpen && !libraryOpen && !dataDialogOpen && !fontsDialogOpen) {
       if (e.code === "Space") {
@@ -581,7 +587,7 @@
       }
     }
 
-    if (printDialogOpen || libraryOpen || dataDialogOpen || fontsDialogOpen || shortcutsOpen) return;
+    if (printDialogOpen || libraryOpen || dataDialogOpen || fontsDialogOpen || shortcutsOpen || aboutOpen) return;
 
     if (modifier && key === "z") {
       if (inField || editingText) return;
@@ -963,6 +969,7 @@
     </button>
     <button class="menu-btn" class:active={layersOpen} onclick={() => (layersOpen = !layersOpen)}>Layers</button>
     <button class="menu-btn shortcuts-btn" title="Keyboard shortcuts" onclick={() => (shortcutsOpen = true)}>?</button>
+    <button class="menu-btn" title="About LabelDesk" onclick={() => (aboutOpen = true)}>About</button>
     <div class="undo-cluster">
       <button class="icon-btn" title="Undo (Ctrl+Z)" disabled={undoDisabled} onclick={undo} aria-label="Undo">
         ↺
@@ -1030,6 +1037,7 @@
     onImport={importLabelJson}
   />
   <ShortcutsDialog open={shortcutsOpen} onClose={() => (shortcutsOpen = false)} />
+  <AboutDialog open={aboutOpen} onClose={() => (aboutOpen = false)} />
   <CanvasContextMenu
     open={contextMenu.open}
     x={contextMenu.x}

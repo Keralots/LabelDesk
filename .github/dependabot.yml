@@ -8,6 +8,14 @@ updates:
     groups:
       development-dependencies:
         dependency-type: development
+    ignore:
+      # Printer protocol library: updates are hand-picked and physically
+      # verified on real hardware before bumping. The registry also mixes
+      # browser and Node ("-node") variants under one package name.
+      - dependency-name: "@mmote/niimbluelib"
+      # svelte-check is not compatible with the TypeScript 7 line yet.
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: github-actions
     directory: /
     schedule:

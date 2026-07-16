@@ -29,7 +29,7 @@
 		"@fontsource/archivo": "5.2.8",
 		"@fontsource/archivo-black": "5.2.8",
 		"@fontsource/ibm-plex-mono": "5.2.7",
-		"@mmote/niimbluelib": "0.0.1-alpha.40",
+		"@mmote/niimbluelib": "0.0.1-alpha.41-node",
 		"d3-dsv": "^3.0.1",
 		"dayjs": "^1.11.21",
 		"fabric": "^7.4.0",

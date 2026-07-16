@@ -5,6 +5,20 @@ printers. Design labels on a Fabric.js canvas, connect directly over Web
 Bluetooth, preview the exact one-bit output, and print without installing a
 native application.
 
+![LabelDesk editor with a sample 50 x 30 mm label](docs/screenshot.png)
+
+## Use it now
+
+**<https://keralots.github.io/LabelDesk/>** - nothing to install.
+
+Open the link in a current Chromium-based browser (Chrome or Edge on Windows,
+macOS, Linux, or Android), click **Connect printer**, pick your NIIMBOT
+printer, and print.
+
+LabelDesk is free and open source. There is no backend server: no accounts, no
+uploads, and no data collection. Everything you design stays in your browser
+unless you export it to a file yourself.
+
 > [!IMPORTANT]
 > LabelDesk is an independent, unofficial project. It is not affiliated with,
 > endorsed by, or sponsored by NIIMBOT, MultiMote, or niimblue. Printer
@@ -131,6 +145,11 @@ the browser.
 
 Please do not open a public issue for a suspected vulnerability. Follow the
 private reporting instructions in [SECURITY.md](SECURITY.md).
+
+## Support the project
+
+LabelDesk is a free hobby project. If it saves you time, you can support
+development at [ko-fi.com/keralots](https://ko-fi.com/keralots).
 
 ## License
 

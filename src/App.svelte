@@ -990,25 +990,27 @@
         · {(labelProps.size.width / DPMM).toFixed(1)} × {(labelProps.size.height / DPMM).toFixed(1)} mm · 203 dpi
       </span>
     </div>
-    <button
-      class="chip"
-      class:connected={$connectionState === "connected"}
-      class:connecting={$connectionState === "connecting"}
-      onclick={onConnectClick}
-    >
-      <span class="dot"></span>
-      {#if $connectionState === "connected"}
-        {$printerName}
-        {#if $heartbeat?.chargeLevel != null}
-          <span class="batt">{$heartbeat.chargeLevel * 25}%</span>
+    <div class="topbar-actions">
+      <button
+        class="chip"
+        class:connected={$connectionState === "connected"}
+        class:connecting={$connectionState === "connecting"}
+        onclick={onConnectClick}
+      >
+        <span class="dot"></span>
+        {#if $connectionState === "connected"}
+          {$printerName}
+          {#if $heartbeat?.chargeLevel != null}
+            <span class="batt">{$heartbeat.chargeLevel * 25}%</span>
+          {/if}
+        {:else if $connectionState === "connecting"}
+          Connecting…
+        {:else}
+          Connect printer
         {/if}
-      {:else if $connectionState === "connecting"}
-        Connecting…
-      {:else}
-        Connect printer
-      {/if}
-    </button>
-    <button class="btn-print" onclick={() => (printDialogOpen = true)}>Print</button>
+      </button>
+      <button class="btn-print" onclick={() => (printDialogOpen = true)}>Print</button>
+    </div>
   </header>
 
   <PrintDialog
@@ -1254,6 +1256,12 @@
     font-weight: 600;
   }
 
+  .topbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
   .chip {
     display: inline-flex;
     align-items: center;
@@ -1487,6 +1495,18 @@
     .btn-print {
       padding: 8px 14px;
       letter-spacing: 0.5px;
+    }
+
+    /* Keep connect + print reachable without scrolling the bar. */
+    .topbar-actions {
+      position: sticky;
+      right: 0;
+      z-index: 1;
+      height: 100%;
+      padding-left: 8px;
+      gap: 8px;
+      background: var(--paper);
+      box-shadow: -10px 0 8px -6px rgba(31, 26, 20, 0.15);
     }
 
     .main {

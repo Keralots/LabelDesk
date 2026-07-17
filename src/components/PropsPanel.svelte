@@ -56,6 +56,14 @@
   const px2mm = (px: number) => Math.round((px / dpmm) * 10) / 10;
   const mm2px = (mm: number) => mm * dpmm;
 
+  // Mobile bottom-sheet state: the panel auto-opens when an object is selected
+  // and collapses to just the header on deselect. Desktop CSS ignores the
+  // collapsed class, so the state is harmless there.
+  let mobileExpanded = $state(false);
+  $effect(() => {
+    mobileExpanded = selection !== null;
+  });
+
   // Size presets available at the current resolution (D110 = 8 px/mm).
   const sizePresets = DEFAULT_LABEL_PRESETS.filter((p) => p.dpmm === dpmm);
 
@@ -267,11 +275,19 @@
     image.filters.some((filter) => filter.type === type);
 </script>
 
-<div class="props">
-  <div class="p-head">
+<div class="props" class:collapsed={!mobileExpanded}>
+  <button
+    class="p-head"
+    type="button"
+    aria-expanded={mobileExpanded}
+    onclick={() => (mobileExpanded = !mobileExpanded)}
+  >
     <b>{selection ? objectTitle(selection) : "Label"}</b>
-    <span>{selection instanceof fabric.ActiveSelection ? `${selection.size()} SELECTED` : selection ? "SELECTED" : "NO SELECTION"}</span>
-  </div>
+    <span class="p-meta">
+      {selection instanceof fabric.ActiveSelection ? `${selection.size()} SELECTED` : selection ? "SELECTED" : "NO SELECTION"}
+      <span class="chev" aria-hidden="true">{mobileExpanded ? "▾" : "▴"}</span>
+    </span>
+  </button>
 
   {#if selection}
     {#key `${rev}-${selection.constructor.name}`}
@@ -611,13 +627,29 @@
   }
 
   .p-head {
+    width: 100%;
     padding: 10px 14px;
+    border: 0;
     border-bottom: 1.5px solid var(--ink);
     background: var(--paper);
     display: flex;
     justify-content: space-between;
     align-items: center;
     flex: none;
+    font: inherit;
+    color: inherit;
+    text-align: left;
+    cursor: default;
+  }
+
+  .p-meta {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .chev {
+    display: none;
   }
 
   .p-head b {
@@ -894,5 +926,28 @@
     font-size: 12px;
     color: var(--ink-3);
     line-height: 1.5;
+  }
+
+  /* Mobile: collapsible bottom sheet under the canvas. */
+  @media (max-width: 768px) {
+    .props {
+      order: 3;
+      width: 100%;
+      max-height: 44vh;
+      border-left: 0;
+      border-top: 1.5px solid var(--ink);
+    }
+
+    .props.collapsed .sec {
+      display: none;
+    }
+
+    .p-head {
+      cursor: pointer;
+    }
+
+    .chev {
+      display: inline;
+    }
   }
 </style>

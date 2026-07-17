@@ -84,6 +84,9 @@
 
   const DPMM = 8; // 203 dpi
   const AUTOSAVE_DELAY_MS = 400;
+  // Breakpoint below which the editor switches to the stacked mobile layout.
+  // Keep in sync with the @media rules in this file and the panel components.
+  const isNarrowViewport = () => window.matchMedia("(max-width: 768px)").matches;
 
   const undoRedo = new UndoRedo();
   let autosaveReady = false;
@@ -863,7 +866,9 @@
       }
 
       if (disposed || !canvas) return;
-      canvas.virtualZoom(2);
+      // On phones a fixed 200% zoom usually overflows the viewport; fit instead.
+      if (isNarrowViewport()) zoomToFit();
+      else canvas.virtualZoom(2);
       canvas.setSafeAreaVisible(safeAreaVisible);
       canvas.setSmartSnap(smartSnap);
       canvas.renderAll();
@@ -897,8 +902,9 @@
   const zoomOut = () => canvas?.virtualZoomOut();
   const zoomToFit = () => {
     if (!canvas || !canvasAreaEl) return;
-    const availableWidth = Math.max(1, canvasAreaEl.clientWidth - 96);
-    const availableHeight = Math.max(1, canvasAreaEl.clientHeight - 96);
+    const margin = isNarrowViewport() ? 40 : 96;
+    const availableWidth = Math.max(1, canvasAreaEl.clientWidth - margin);
+    const availableHeight = Math.max(1, canvasAreaEl.clientHeight - margin);
     canvas.virtualZoom(Math.min(availableWidth / canvas.getWidth(), availableHeight / canvas.getHeight(), 4));
   };
 
@@ -980,7 +986,9 @@
     </div>
     <div class="doc-chip">
       <span class:dirty>{documentTitle}{dirty ? " *" : ""}</span>
-      · {(labelProps.size.width / DPMM).toFixed(1)} × {(labelProps.size.height / DPMM).toFixed(1)} mm · 203 dpi
+      <span class="doc-dims">
+        · {(labelProps.size.width / DPMM).toFixed(1)} × {(labelProps.size.height / DPMM).toFixed(1)} mm · 203 dpi
+      </span>
     </div>
     <button
       class="chip"
@@ -1444,5 +1452,75 @@
   .snap-toggle.on {
     color: var(--green);
     font-weight: 600;
+  }
+
+  /* ----- Mobile layout (stacked panels) ----- */
+  @media (max-width: 768px) {
+    .topbar {
+      gap: 4px;
+      padding: 0 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .topbar::-webkit-scrollbar {
+      display: none;
+    }
+
+    .topbar > * {
+      flex: none;
+    }
+
+    .menu-btn {
+      padding: 6px 8px;
+    }
+
+    /* Keyboard shortcuts are useless on a touch screen. */
+    .shortcuts-btn {
+      display: none;
+    }
+
+    .doc-dims {
+      display: none;
+    }
+
+    .btn-print {
+      padding: 8px 14px;
+      letter-spacing: 0.5px;
+    }
+
+    .main {
+      flex-direction: column;
+    }
+
+    .canvas-area {
+      order: 1;
+      min-height: 0;
+    }
+
+    .canvas-stage {
+      padding: 16px;
+    }
+
+    .zoom-cluster {
+      left: 10px;
+      bottom: 10px;
+    }
+
+    .status {
+      gap: 12px;
+      padding: 0 10px;
+      overflow-x: auto;
+      scrollbar-width: none;
+    }
+
+    .status::-webkit-scrollbar {
+      display: none;
+    }
+
+    .status > * {
+      flex: none;
+      white-space: nowrap;
+    }
   }
 </style>

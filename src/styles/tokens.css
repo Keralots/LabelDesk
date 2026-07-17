@@ -41,6 +41,9 @@ html,
 body {
   margin: 0;
   height: 100%;
+  /* Mobile browsers: track the dynamic viewport so the collapsing URL bar
+     does not leave the app taller than the visible area. */
+  height: 100dvh;
 }
 
 body {

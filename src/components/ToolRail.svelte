@@ -72,4 +72,26 @@
     color: var(--paper);
     border-color: var(--ink);
   }
+
+  /* Mobile: horizontal toolbar docked at the bottom of the editor column. */
+  @media (max-width: 768px) {
+    .rail {
+      order: 4;
+      width: 100%;
+      height: 52px;
+      flex-direction: row;
+      justify-content: center;
+      padding: 0 10px;
+      gap: 8px;
+      border-right: 0;
+      border-top: 1.5px solid var(--ink);
+      overflow-x: auto;
+    }
+
+    .tool {
+      flex: none;
+      width: 40px;
+      height: 40px;
+    }
+  }
 </style>

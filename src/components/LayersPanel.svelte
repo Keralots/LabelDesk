@@ -130,6 +130,17 @@
     flex-direction: column;
   }
 
+  /* Mobile: full-width strip between the canvas and the properties sheet. */
+  @media (max-width: 768px) {
+    .layers {
+      order: 2;
+      width: 100%;
+      max-height: 34vh;
+      border-left: 0;
+      border-top: 1.5px solid var(--ink);
+    }
+  }
+
   .head {
     height: 38px;
     padding: 0 12px;

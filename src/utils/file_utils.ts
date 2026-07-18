@@ -111,17 +111,15 @@ export class FileUtils {
   }
 
   static makeExportedLabel(
-    canvas: fabric.Canvas,
+    canvas: CustomCanvas,
     labelProps: LabelProps,
     includeCsv: boolean,
     includeFonts = false,
   ): ExportedLabelTemplate {
+    const crop = canvas.getLabelCrop();
     const thumbnailBase64: string = canvas.toDataURL({
-      width: canvas.width,
-      height: canvas.height,
-      left: 0,
-      top: 0,
-      multiplier: THUMBNAIL_HEIGHT / (canvas.height || 1),
+      ...crop,
+      multiplier: THUMBNAIL_HEIGHT / (crop.height || 1),
       quality: THUMBNAIL_QUALITY,
       format: "jpeg",
     });
@@ -162,14 +160,11 @@ export class FileUtils {
   }
 
   /** Convert canvas to PNG and download it */
-  static saveCanvasAsPng(canvas: fabric.Canvas, title?: string) {
+  static saveCanvasAsPng(canvas: CustomCanvas, title?: string) {
     const timestamp = FileUtils.timestamp();
 
     const url = canvas.toDataURL({
-      width: canvas.width,
-      height: canvas.height,
-      left: 0,
-      top: 0,
+      ...canvas.getLabelCrop(),
       format: "png",
       multiplier: 1,
     });

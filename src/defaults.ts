@@ -65,6 +65,13 @@ export const FONT_FAMILIES: { label: string; value: string }[] = [
 /** Object movement snapping */
 export const GRID_SIZE: number = 5;
 
+/**
+ * Editor canvas margin around the label, in label pixels. Selection handles
+ * only render and hit-test inside the canvas element, so this margin keeps
+ * them reachable when an object sticks out of the label.
+ */
+export const EDITOR_CANVAS_MARGIN: number = 48;
+
 /** Newly created Fabric object dimensions */
 export const OBJECT_SIZE_DEFAULTS = {
   width: 64,

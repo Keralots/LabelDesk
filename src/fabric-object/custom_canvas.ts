@@ -35,6 +35,9 @@ export class CustomCanvas extends fabric.Canvas {
   private smartGuideX?: number;
   private smartGuideY?: number;
   private virtualZoomRatio: number = 1;
+  private editorPadding: number = 0;
+  private labelWidth: number;
+  private labelHeight: number;
   onZoomChange?: (zoom: number) => void;
 
   constructor(
@@ -42,6 +45,8 @@ export class CustomCanvas extends fabric.Canvas {
     options?: fabric.TOptions<fabric.CanvasOptions>,
   ) {
     super(el, options);
+    this.labelWidth = this.width ?? 1;
+    this.labelHeight = this.height ?? 1;
     this.setupZoomAndPan();
     this.preserveObjectStacking = true;
 
@@ -245,12 +250,46 @@ export class CustomCanvas extends fabric.Canvas {
   }
 
   /**
+   * Editor-only margin around the label inside the canvas element, in label
+   * pixels. Fabric renders and hit-tests selection handles only inside the
+   * canvas element, so without a margin the handles of objects touching the
+   * label edge are clipped and cannot be grabbed. The label keeps its (0,0)
+   * origin: the margin is applied as a viewport translation, which fabric
+   * compensates in all pointer math.
+   */
+  setEditorPadding(value: number) {
+    this.editorPadding = value;
+    this.applyCanvasDimensions();
+  }
+
+  /** Label area in canvas element coordinates, for toDataURL cropping. */
+  getLabelCrop(): { left: number; top: number; width: number; height: number } {
+    return {
+      left: this.editorPadding,
+      top: this.editorPadding,
+      width: this.labelWidth,
+      height: this.labelHeight,
+    };
+  }
+
+  /**
    * Resize the label to new pixel dimensions. Updates the logical (backstore)
    * size, then re-applies the current virtual zoom so CSS size and the retina
    * backing store stay in sync and the label background repaints.
    */
   setLabelSize(width: number, height: number) {
-    this.setDimensions({ width, height }, { backstoreOnly: true });
+    this.labelWidth = width;
+    this.labelHeight = height;
+    this.applyCanvasDimensions();
+  }
+
+  private applyCanvasDimensions() {
+    const pad = this.editorPadding;
+    this.setDimensions(
+      { width: this.labelWidth + pad * 2, height: this.labelHeight + pad * 2 },
+      { backstoreOnly: true },
+    );
+    this.setViewportTransform([1, 0, 0, 1, pad, pad]);
     this.virtualZoom(this.virtualZoomRatio);
   }
 
@@ -287,8 +326,8 @@ export class CustomCanvas extends fabric.Canvas {
 
   /** Get label bounds without tail */
   getLabelBounds(): LabelBounds {
-    let endX = this.width ?? 1;
-    let endY = this.height ?? 1;
+    let endX = this.labelWidth;
+    let endY = this.labelHeight;
     let startX = 0;
     let startY = 0;
 
@@ -320,7 +359,11 @@ export class CustomCanvas extends fabric.Canvas {
 
     const ctx = this.contextTop;
     const label = this.getLabelBounds();
+    const v = this.viewportTransform;
     ctx.save();
+    // Overlays are drawn in label coordinates; the editor padding lives in
+    // the viewport transform.
+    ctx.transform(v[0], v[1], v[2], v[3], v[4], v[5]);
     if (this.safeAreaVisible) {
       const safe = this.getSafeAreaBounds();
       ctx.strokeStyle = "rgba(211, 61, 46, 0.62)";
@@ -405,19 +448,44 @@ export class CustomCanvas extends fabric.Canvas {
     }
 
     ctx.save();
+    // Fabric calls _renderBackground before applying the viewport transform;
+    // the label is drawn in label coordinates, so apply it here.
+    const v = this.viewportTransform;
+    ctx.transform(v[0], v[1], v[2], v[3], v[4], v[5]);
     ctx.fillStyle = "white";
 
     // Draw simple white background and exit
     if (!this.customBackground) {
-      ctx.fillRect(0, 0, this.width, this.height);
+      ctx.fillRect(0, 0, this.labelWidth, this.labelHeight);
       ctx.restore();
       return;
+    }
+
+    // Stamped shadow under the label: the editor margin around the label is
+    // transparent, so the card shadow previously supplied by CSS on the
+    // canvas wrapper is drawn here instead. Falls outside the label crop, so
+    // exports stay clean.
+    if (this.editorPadding > 0) {
+      const offset = 4 / this.virtualZoomRatio;
+      ctx.save();
+      ctx.translate(offset, offset);
+      ctx.fillStyle = "rgba(26, 22, 17, 0.18)";
+      ctx.beginPath();
+      if (this.labelProps.shape === "circle") {
+        ctx.arc(this.labelWidth / 2, this.labelHeight / 2, this.labelHeight / 2, 0, 2 * Math.PI);
+      } else {
+        const radius = this.labelProps.shape === "rounded_rect" ? this.ROUND_RADIUS : 0;
+        ctx.roundRect(0, 0, this.labelWidth, this.labelHeight, radius);
+      }
+      ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = "white";
     }
 
     // Disable further actions for circle labels, just render
     if (this.labelProps.shape === "circle") {
       ctx.beginPath();
-      ctx.arc(this.width / 2, this.height / 2, this.height / 2, 0, 2 * Math.PI);
+      ctx.arc(this.labelWidth / 2, this.labelHeight / 2, this.labelHeight / 2, 0, 2 * Math.PI);
       ctx.fill();
       ctx.restore();
       return;
@@ -443,7 +511,7 @@ export class CustomCanvas extends fabric.Canvas {
         ctx.rect(
           bb.endX - roundRadius,
           bb.endY / 2 - this.TAIL_WIDTH / 2,
-          this.width - bb.endX + roundRadius,
+          this.labelWidth - bb.endX + roundRadius,
           this.TAIL_WIDTH,
         );
       } else if (this.labelProps.tailPos === "bottom") {
@@ -451,7 +519,7 @@ export class CustomCanvas extends fabric.Canvas {
           bb.endX / 2 - this.TAIL_WIDTH / 2,
           bb.endY - roundRadius,
           this.TAIL_WIDTH,
-          this.height - bb.endY + roundRadius,
+          this.labelHeight - bb.endY + roundRadius,
         );
       } else if (this.labelProps.tailPos === "left") {
         ctx.rect(
@@ -504,7 +572,7 @@ export class CustomCanvas extends fabric.Canvas {
           ctx.roundRect(x, bb.startY, segmentWidth, bb.height, roundRadius),
         ); // Other parts
       } else {
-        ctx.roundRect(0, 0, this.width, this.height, roundRadius);
+        ctx.roundRect(0, 0, this.labelWidth, this.labelHeight, roundRadius);
       }
     } else {
       ctx.rect(bb.startX, bb.startY, bb.width, bb.height);
@@ -679,7 +747,13 @@ export class CustomCanvas extends fabric.Canvas {
       return;
     }
 
-    super.centerObjectH(object);
+    // Fabric's own centering targets the canvas element center, which is
+    // shifted from the label center by the editor padding.
+    const pos = object.getPointByOrigin("center", "center");
+    const bounds = this.getLabelBounds();
+    pos.setX(bounds.startX + bounds.width / 2);
+    object.setPositionByOrigin(pos, "center", "center");
+    object.setCoords();
   }
 
   /** Centers object vertically in the canvas or label part */
@@ -703,6 +777,17 @@ export class CustomCanvas extends fabric.Canvas {
       return;
     }
 
-    super.centerObjectV(object);
+    const pos = object.getPointByOrigin("center", "center");
+    const bounds = this.getLabelBounds();
+    pos.setY(bounds.startY + bounds.height / 2);
+    object.setPositionByOrigin(pos, "center", "center");
+    object.setCoords();
+  }
+
+  /** Centers object in the label (not the padded canvas element). */
+  override centerObject(object: fabric.FabricObject): void {
+    this.centerObjectH(object);
+    this.centerObjectV(object);
+    this.requestRenderAll();
   }
 }

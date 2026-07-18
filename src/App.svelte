@@ -11,6 +11,7 @@
   import { CanvasUtils } from "$/utils/canvas_utils";
   import {
     DEFAULT_LABEL_PROPS,
+    EDITOR_CANVAS_MARGIN,
     OBJECT_DEFAULTS,
     OBJECT_DEFAULTS_TEXT,
     OBJECT_DEFAULTS_VECTOR,
@@ -761,6 +762,7 @@
       height: labelProps.size.height,
     });
     canvas.setLabelProps(labelProps);
+    canvas.setEditorPadding(EDITOR_CANVAS_MARGIN);
     const unsubscribeFonts = userFonts.subscribe((fonts) => {
       void syncUserFonts(fonts).then(() => {
         if (disposed || !canvas) return;
@@ -1360,9 +1362,9 @@
     place-items: center;
   }
 
-  .canvas-holder {
-    box-shadow: var(--shadow-lg);
-  }
+  /* The label card shadow is drawn inside the canvas (CustomCanvas
+     _renderBackground): the canvas element now has a transparent editor
+     margin around the label, so a CSS shadow here would wrap the wrong box. */
 
   .canvas-area.panning,
   .canvas-area.panning :global(canvas) {

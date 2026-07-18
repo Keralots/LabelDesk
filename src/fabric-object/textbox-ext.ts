@@ -7,6 +7,10 @@ interface UniqueTextboxExtProps {
 
 const TEXTBOX_PROPS: Array<keyof UniqueTextboxExtProps> = ["fontAutoSize"];
 
+/** Remove invisible padding at line ends without touching spaces between words. */
+export const trimTrailingLineWhitespace = (text: string): string =>
+  text.replace(/[ \t]+(?=\r?\n|$)/g, "");
+
 export const textboxExtDefaultValues: Partial<fabric.TClassProperties<TextboxExt>> = {
   fontAutoSize: false,
 };
@@ -97,7 +101,41 @@ export class TextboxExt<
     this.widthBeforeEditing = this.width;
   }
 
+  /**
+   * Text boxes use their explicit width for wrapping, so trailing whitespace
+   * otherwise looks like unexplained padding and affects fitting. Remove it
+   * when editing ends, while preserving line breaks and spaces inside text.
+   */
+  private trimTrailingWhitespace(): void {
+    const normalized = trimTrailingLineWhitespace(this.text);
+    if (normalized !== this.text) {
+      const ranges: Array<{ start: number; end: number }> = [];
+      let lineEnd = this._text.length;
+      for (let index = this._text.length - 1; index >= -1; index -= 1) {
+        if (index !== -1 && this._text[index] !== "\n") continue;
+
+        let contentEnd = lineEnd;
+        if (contentEnd > index + 1 && this._text[contentEnd - 1] === "\r") contentEnd -= 1;
+        let start = contentEnd;
+        while (start > index + 1 && /^[ \t]$/.test(this._text[start - 1])) start -= 1;
+        if (start < contentEnd) ranges.push({ start, end: contentEnd });
+        lineEnd = index;
+      }
+      ranges.forEach(({ start, end }) => this.removeChars(start, end));
+      if (this.hiddenTextarea) this.hiddenTextarea.value = normalized;
+      this.selectionStart = Math.min(this.selectionStart, this._text.length);
+      this.selectionEnd = Math.min(this.selectionEnd, this._text.length);
+    }
+  }
+
+  override exitEditing(): this {
+    this.trimTrailingWhitespace();
+    return super.exitEditing();
+  }
+
   override exitEditingImpl() {
+    // Fabric also calls this lower-level method directly while disposing.
+    this.trimTrailingWhitespace();
     super.exitEditingImpl();
     this.widthBeforeEditing = undefined;
   }

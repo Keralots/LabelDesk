@@ -2,6 +2,7 @@
   import {
     printLabel,
     printBatch,
+    cancelPrint,
     renderPrintCanvas,
     connectionState,
     printerMeta,
@@ -111,6 +112,14 @@
     if ($printState !== "idle") return;
     previewRequest++;
     open = false;
+  };
+
+  const onCancel = () => {
+    if ($printState === "idle") {
+      close();
+    } else {
+      cancelPrint();
+    }
   };
 
   const onPrint = async () => {
@@ -240,7 +249,7 @@
           {/if}
         </span>
         <div class="foot-btns">
-          <button class="btn ghost" onclick={close} disabled={$printState !== "idle"}>Cancel</button>
+          <button class="btn ghost" onclick={onCancel}>Cancel</button>
           <button class="btn primary" onclick={onPrint} disabled={$printState !== "idle" || $connectionState !== "connected" || batchBlocked()}>
             {#if $printState === "sending"}
               Sending...

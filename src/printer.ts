@@ -113,6 +113,87 @@ export interface PrintTaskPort {
   printEnd(): Promise<boolean>;
 }
 
+export class PrintCancelledError extends Error {
+  constructor() {
+    super("Print cancelled");
+    this.name = "PrintCancelledError";
+  }
+}
+
+export interface PrinterPageStatus {
+  page: number;
+  pagePrintProgress: number;
+  pageFeedProgress: number;
+}
+
+export interface PrintStatusSource {
+  getPrintStatus(tries?: number): Promise<PrinterPageStatus>;
+  setPacketTimeout(ms: number): void;
+  setDefaultPacketTimeout(): void;
+}
+
+export interface WaitForPagesOptions {
+  pollIntervalMs?: number;
+  /** Fail if the reported status does not change for this long. */
+  stallTimeoutMs?: number;
+  /** Timeout of a single status request. */
+  statusTimeoutMs?: number;
+  signal?: AbortSignal;
+  onStatus?: (status: PrinterPageStatus) => void;
+}
+
+const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Poll print status until the printer reports at least {@link expectedPages}
+ * printed pages.
+ *
+ * Replaces niimbluelib's waitUntilPrintFinishedByStatusPoll, which resolves
+ * only on a strict page === expected match and has no overall deadline: when
+ * the printer never reports that exact value (page counter reset or skipped
+ * between polls), its setInterval loop spins forever and the print promise
+ * never settles. This loop accepts page >= expected, polls sequentially, and
+ * fails once the reported status stops changing for {@link WaitForPagesOptions.stallTimeoutMs}.
+ */
+export const waitForPagesReported = async (
+  source: PrintStatusSource,
+  expectedPages: number,
+  options: WaitForPagesOptions = {},
+): Promise<void> => {
+  const pollIntervalMs = options.pollIntervalMs ?? 200;
+  const stallTimeoutMs = options.stallTimeoutMs ?? 20_000;
+
+  source.setPacketTimeout(options.statusTimeoutMs ?? 8_000);
+  try {
+    let lastStatusKey = "";
+    let deadline = Date.now() + stallTimeoutMs;
+
+    for (;;) {
+      if (options.signal?.aborted) throw new PrintCancelledError();
+
+      const status = await source.getPrintStatus(2);
+      options.onStatus?.(status);
+
+      if (status.page >= expectedPages) return;
+
+      const statusKey = `${status.page}/${status.pagePrintProgress}/${status.pageFeedProgress}`;
+      if (statusKey !== lastStatusKey) {
+        lastStatusKey = statusKey;
+        deadline = Date.now() + stallTimeoutMs;
+      } else if (Date.now() > deadline) {
+        throw new Error(
+          `Printer did not confirm page ${expectedPages} ` +
+            `(stuck at page ${status.page}, print ${status.pagePrintProgress}%, feed ${status.pageFeedProgress}%)`,
+        );
+      }
+
+      await sleep(pollIntervalMs);
+    }
+  } finally {
+    source.setDefaultPacketTimeout();
+  }
+};
+
 /** Execute a batch against one initialized task and always end the task. */
 export const executeBatchPrintTask = async (
   task: PrintTaskPort,
@@ -132,7 +213,13 @@ export const executeBatchPrintTask = async (
     }
     await task.waitForFinished();
   } finally {
-    await task.printEnd();
+    // The print itself already succeeded or failed at this point; a failed
+    // cleanup packet must not mask that outcome.
+    try {
+      await task.printEnd();
+    } catch (error) {
+      console.warn("printEnd failed:", error);
+    }
   }
 };
 
@@ -183,6 +270,21 @@ export const renderPrintCanvas = async (
   }
 };
 
+/**
+ * Print task types whose library implementation confirms pages through
+ * waitUntilPrintFinishedByStatusPoll. For these the wait is replaced with
+ * waitForPagesReported (see its doc comment). B21_V1 and D11_V1 confirm
+ * completion through different packets and keep the library behavior.
+ */
+const STATUS_POLL_TASKS: PrintTaskName[] = ["D110", "B1", "D110M_V4", "H1S"];
+
+let activePrintAbort: AbortController | undefined;
+
+/** Abort the print in progress: the current page finishes, the task ends. */
+export const cancelPrint = (): void => {
+  activePrintAbort?.abort();
+};
+
 /** Render and print different variable rows as one printer task. */
 export const printBatch = async (
   canvasJson: FabricJson,
@@ -207,6 +309,9 @@ export const printBatch = async (
   printProgress.set(0);
   printCurrentRow.set(0);
 
+  const abort = new AbortController();
+  activePrintAbort = abort;
+
   try {
     console.log(`Print task: ${taskName}, density ${density}, pages ${totalPages}`);
     const task = client.abstraction.newPrintTask(taskName, {
@@ -219,17 +324,50 @@ export const printBatch = async (
     });
     client.stopHeartbeat();
 
-    let completedPages = 0;
-    const listener = (event: PrintProgressEvent) => {
-      const stageProgress = (event.pagePrintProgress + event.pageFeedProgress) / 200;
-      const overall = ((Math.max(0, event.page - 1) + stageProgress) / totalPages) * 100;
+    const onStatus = (status: PrinterPageStatus) => {
+      const stageProgress = (status.pagePrintProgress + status.pageFeedProgress) / 200;
+      const overall = ((Math.max(0, status.page - 1) + stageProgress) / totalPages) * 100;
       printProgress.set(Math.min(99, Math.max(0, Math.floor(overall))));
     };
+
+    // Progress source for the tasks that keep the library wait functions.
+    const listener = (event: PrintProgressEvent) => {
+      onStatus({
+        page: event.page,
+        pagePrintProgress: event.pagePrintProgress,
+        pageFeedProgress: event.pageFeedProgress,
+      });
+    };
+
+    const abstraction = client.abstraction;
+    const useOwnStatusPoll = STATUS_POLL_TASKS.includes(taskName);
+    const waitOptions = { signal: abort.signal, onStatus };
+    let pagesQueued = 0;
+
+    const port: PrintTaskPort = {
+      printInit: () => task.printInit(),
+      printPage: async (image, quantity) => {
+        if (abort.signal.aborted) throw new PrintCancelledError();
+        await task.printPage(image, quantity);
+        pagesQueued += quantity ?? 1;
+      },
+      waitForPageFinished: () =>
+        useOwnStatusPoll
+          ? waitForPagesReported(abstraction, pagesQueued, waitOptions)
+          : task.waitForPageFinished(),
+      waitForFinished: () =>
+        useOwnStatusPoll
+          ? waitForPagesReported(abstraction, totalPages, waitOptions)
+          : task.waitForFinished(),
+      printEnd: () => task.printEnd(),
+    };
+
+    let completedPages = 0;
 
     client.on("printprogress", listener);
     try {
       await executeBatchPrintTask(
-        task,
+        port,
         rows,
         async (row) => {
           const canvas = await renderPrintCanvas(canvasJson, labelProps, {
@@ -252,9 +390,12 @@ export const printBatch = async (
       client.startHeartbeat();
     }
   } catch (error) {
-    printError.set(`${error}`);
+    if (!(error instanceof PrintCancelledError)) {
+      printError.set(`${error}`);
+    }
     throw error;
   } finally {
+    activePrintAbort = undefined;
     printState.set("idle");
     printProgress.set(0);
     printCurrentRow.set(0);

@@ -28,7 +28,7 @@
 		"@fontsource-variable/noto-sans": "5.2.10",
 		"@fontsource/archivo": "5.2.8",
 		"@fontsource/archivo-black": "5.2.8",
-		"@fontsource/ibm-plex-mono": "5.2.7",
+		"@fontsource/ibm-plex-mono": "5.3.0",
 		"@mmote/niimbluelib": "0.0.1-alpha.40",
 		"d3-dsv": "^3.0.1",
 		"dayjs": "^1.11.21",

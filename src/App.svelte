@@ -29,7 +29,7 @@
   import { UndoRedo } from "$/utils/undo_redo";
   import { ExportedLabelTemplateSchema, LabelPropsSchema } from "$/types";
   import type { EditorSession, ExportedLabelTemplate, LabelProps } from "$/types";
-  import { connect, disconnect, connectionState, printerName, heartbeat } from "$/printer";
+  import { connect, disconnect, connectionState, printerName, heartbeat, printLabel, DEFAULT_PRINT_OPTIONS } from "$/printer";
   import type { FabricJson } from "$/types";
   import { csvData, loadedFontFamilies, userFonts } from "$/stores";
   import { parseBatchCsv } from "$/utils/batch_data";
@@ -686,6 +686,7 @@
   let dataDialogOpen = $state(false);
   let fontsDialogOpen = $state(false);
   const getCanvasJson = (): FabricJson => CanvasUtils.serializeCanvas(canvas!);
+  const quickPrint = () => printLabel(getCanvasJson(), labelProps, DEFAULT_PRINT_OPTIONS);
 
   const saveLabelToLibrary = (title: string, includeCsv: boolean, includeFonts: boolean) => {
     if (!canvas) return;
@@ -1119,6 +1120,9 @@
       onReplaceImage={replaceImage}
       onLabelSize={applyLabelSize}
       onLabelProps={updateLabelProps}
+      {batchEnabled}
+      onQuickPrint={quickPrint}
+      onOpenPrintDialog={() => (printDialogOpen = true)}
     />
   </div>
 

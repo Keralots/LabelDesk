@@ -105,6 +105,13 @@ export interface PrintOptions {
   variables?: Record<string, string>;
 }
 
+/** Initial print settings shared by the print dialog and Quick Print. */
+export const DEFAULT_PRINT_OPTIONS = {
+  quantity: 1,
+  postProcess: "threshold",
+  threshold: 140,
+} as const satisfies PrintOptions;
+
 export interface PrintTaskPort {
   printInit(): Promise<void>;
   printPage(image: EncodedImage, quantity?: number): Promise<void>;

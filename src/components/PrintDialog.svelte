@@ -11,6 +11,7 @@
     printProgress,
     printCurrentRow,
     printError,
+    DEFAULT_PRINT_OPTIONS,
   } from "$/printer";
   import type { BatchParseResult, FabricJson, LabelProps, PostProcessType } from "$/types";
   import {
@@ -32,10 +33,10 @@
 
   let { open = $bindable(), getCanvasJson, labelProps, dpmm, batchEnabled, csvText, missingFontFamilies }: Props = $props();
 
-  let copies = $state(1);
+  let copies = $state<number>(DEFAULT_PRINT_OPTIONS.quantity);
   let density = $state(3);
-  let postProcess = $state<PostProcessType>("threshold");
-  let thresholdValue = $state(140);
+  let postProcess = $state<PostProcessType>(DEFAULT_PRINT_OPTIONS.postProcess);
+  let thresholdValue = $state<number>(DEFAULT_PRINT_OPTIONS.threshold);
   let previewEl: HTMLCanvasElement | undefined = $state();
   let parsed = $state<BatchParseResult>({ columns: [], rows: [], errors: [], valid: false });
   let previewIndex = $state(0);

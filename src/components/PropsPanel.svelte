@@ -15,6 +15,7 @@
   import { insetBounds } from "$/utils/editor_layout";
   import { applyCropInsets, readCropInsets, type CropInsets } from "$/utils/image_edit";
   import { CanvasUtils } from "$/utils/canvas_utils";
+  import QuickPrint from "$/components/QuickPrint.svelte";
 
   interface Props {
     selection: fabric.FabricObject | null;
@@ -34,6 +35,9 @@
     onLabelSize: (widthMm: number, heightMm: number) => void;
     /** update non-dimension label properties (shape, split, mirror) */
     onLabelProps: (patch: Partial<LabelProps>) => void;
+    batchEnabled: boolean;
+    onQuickPrint: () => Promise<void>;
+    onOpenPrintDialog: () => void;
   }
 
   let {
@@ -51,6 +55,9 @@
     onReplaceImage,
     onLabelSize,
     onLabelProps,
+    batchEnabled,
+    onQuickPrint,
+    onOpenPrintDialog,
   }: Props = $props();
 
   const px2mm = (px: number) => Math.round((px / dpmm) * 10) / 10;
@@ -538,6 +545,10 @@
       {/if}
 
       <div class="sec">
+        <QuickPrint {batchEnabled} {onQuickPrint} {onOpenPrintDialog} />
+      </div>
+
+      <div class="sec">
         <button class="delete" onclick={onDelete}>Delete object</button>
       </div>
     {/key}
@@ -609,6 +620,10 @@
           <option value="flip">Flip</option>
         </select>
       </div>
+    </div>
+
+    <div class="sec">
+      <QuickPrint {batchEnabled} {onQuickPrint} {onOpenPrintDialog} />
     </div>
 
     <div class="sec hint">Add an object from the left rail, or click one on the canvas to edit it. Double-click text to type.</div>

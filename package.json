@@ -34,7 +34,7 @@
 		"dayjs": "^1.11.21",
 		"fabric": "^7.4.0",
 		"qrcode-generator": "2.0.4",
-		"zod": "^4.4.3"
+		"zod": "^4.6.5"
 	},
 	"devDependencies": {
 		"@sveltejs/vite-plugin-svelte": "^7.3.0",

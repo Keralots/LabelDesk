@@ -100,7 +100,9 @@ export const UserFontSchema = z.object({
   mimeType: z.enum(["font/ttf", "font/otf", "font/woff", "font/woff2"]),
 });
 
-export const ExportedLabelTemplateSchema = z.object({
+// Kept unrefined so it can be reshaped: Zod 4 rejects .omit()/.pick() on
+// object schemas that already carry refinements.
+const ExportedLabelTemplateObjectSchema = z.object({
   canvas: FabricJsonSchema,
   label: LabelPropsSchema,
   thumbnailBase64: z.string().max(MAX_THUMBNAIL_CHARS).refine(isEmbeddedRasterDataUrl, "Invalid thumbnail data").optional(),
@@ -109,12 +111,21 @@ export const ExportedLabelTemplateSchema = z.object({
   id: z.string().optional(), // filled with localStorage key, not exported
   csv: CsvParamsSchema.optional(),
   fonts: z.array(UserFontSchema).max(MAX_USER_FONTS).optional(),
-}).superRefine((value, context) => {
+});
+
+const checkEmbeddedFontSize = (value: { fonts?: UserFont[] }, context: z.RefinementCtx): void => {
   const totalFontChars = value.fonts?.reduce((total, font) => total + font.gzippedDataB64.length, 0) ?? 0;
   if (totalFontChars > MAX_EMBEDDED_FONT_TOTAL_CHARS) {
     context.addIssue({ code: "custom", message: "Embedded font data is too large.", path: ["fonts"] });
   }
-});
+};
+
+export const ExportedLabelTemplateSchema = ExportedLabelTemplateObjectSchema.superRefine(checkEmbeddedFontSize);
+
+/** Template as written to storage or exported files, without the storage-assigned id. */
+export const StoredLabelTemplateSchema = ExportedLabelTemplateObjectSchema.omit({ id: true }).superRefine(
+  checkEmbeddedFontSize,
+);
 
 export const EditorSessionSchema = z.object({
   version: z.literal(1),

@@ -1,6 +1,7 @@
 import * as fabric from "fabric";
 import {
   ExportedLabelTemplateSchema,
+  StoredLabelTemplateSchema,
   LabelPresetSchema,
   type ExportedLabelTemplate,
   type FabricJson,
@@ -148,7 +149,7 @@ export class FileUtils {
 
   /** Convert label template to JSON and download it */
   static saveLabelAsJson(label: ExportedLabelTemplate) {
-    const parsed = ExportedLabelTemplateSchema.omit({ id: true }).parse(label);
+    const parsed = StoredLabelTemplateSchema.parse(label);
     const timestamp = label.timestamp ?? FileUtils.timestamp();
     let filename = `label_${timestamp}.json`;
 

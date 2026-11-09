@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from "svelte";
   import * as fabric from "fabric";
+  import { z } from "zod";
   import { CustomCanvas } from "$/fabric-object/custom_canvas";
   import { TextboxExt } from "$/fabric-object/textbox-ext";
   import Barcode from "$/fabric-object/barcode";
@@ -695,8 +696,13 @@
     if (nextTitle) tpl.title = nextTitle;
     const existing = LocalStoragePersistence.loadLabels();
     const result = LocalStoragePersistence.saveLabels([...existing, tpl]);
-    if (result.zodErrors.length > 0 || result.otherErrors.length > 0) {
-      throw new Error("The label could not be saved to the local library.");
+    const zodCause = result.zodErrors[0];
+    const otherCause = result.otherErrors[0];
+    if (zodCause || otherCause) {
+      const cause = zodCause ?? otherCause;
+      console.error("Saving to the local library failed:", cause);
+      const detail = zodCause ? z.prettifyError(zodCause) : otherCause.message;
+      throw new Error(`The label could not be saved to the local library: ${detail}`, { cause });
     }
     documentTitle = tpl.title || "Untitled";
     markDocumentClean();

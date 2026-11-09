@@ -2,6 +2,7 @@ import {
   AutomationPropsSchema,
   EditorSessionSchema,
   ExportedLabelTemplateSchema,
+  StoredLabelTemplateSchema,
   FabricJsonSchema,
   LabelPresetSchema,
   LabelPropsSchema,
@@ -145,40 +146,58 @@ export class LocalStoragePersistence {
   } {
     const zodErrors: z.ZodError[] = [];
     const otherErrors: Error[] = [];
-
-    Object.keys(localStorage).forEach((key) => {
-      if (key.startsWith("saved_label")) {
-        localStorage.removeItem(key);
+    const recordError = (e: unknown) => {
+      if (e instanceof z.ZodError) {
+        zodErrors.push(e);
+      } else {
+        otherErrors.push(e instanceof Error ? e : new Error(String(e)));
       }
-    });
+    };
 
-    labels.forEach((label) => {
+    // Validate everything before touching storage so a rejected label never
+    // costs the user their existing library.
+    const validated: ExportedLabelTemplate[] = [];
+    for (const label of labels) {
       try {
         if (label.timestamp === undefined) {
           label.timestamp = this.timestamp();
         }
-
-        const basename = `saved_label_${label.timestamp}`;
-        let counter = 0;
-
-        while (`${basename}_${counter}` in localStorage) {
-          counter++;
-        }
-
-        this.validateAndSaveObject(
-          this.createUidForLabel(label),
-          label,
-          ExportedLabelTemplateSchema.omit({ id: true }),
-        );
+        validated.push(StoredLabelTemplateSchema.parse(label));
       } catch (e) {
-        if (e instanceof z.ZodError) {
-          zodErrors.push(e);
-        }
-        if (e instanceof Error) {
-          otherErrors.push(e);
-        }
+        recordError(e);
+      }
+    }
+    if (zodErrors.length > 0 || otherErrors.length > 0) {
+      return { zodErrors, otherErrors };
+    }
+
+    const previous = new Map<string, string>();
+    Object.keys(localStorage).forEach((key) => {
+      if (key.startsWith("saved_label")) {
+        previous.set(key, localStorage.getItem(key) ?? "");
+        localStorage.removeItem(key);
       }
     });
+
+    const written: string[] = [];
+    try {
+      for (const label of validated) {
+        const key = this.createUidForLabel(label);
+        this.saveObject(key, label);
+        written.push(key);
+      }
+    } catch (e) {
+      // Typically a storage quota error: roll back to the previous library.
+      recordError(e);
+      written.forEach((key) => localStorage.removeItem(key));
+      previous.forEach((value, key) => {
+        try {
+          localStorage.setItem(key, value);
+        } catch (restoreError) {
+          recordError(restoreError);
+        }
+      });
+    }
     return { zodErrors, otherErrors };
   }
 
@@ -328,7 +347,7 @@ export class LocalStoragePersistence {
     this.validateAndSaveObject(
       "default_template",
       value,
-      ExportedLabelTemplateSchema.omit({ id: true }),
+      StoredLabelTemplateSchema,
     );
   }
 
